@@ -216,6 +216,47 @@ async def test_serve_hospital_ui(async_client):
     assert "text/html" in resp.headers["content-type"]
 
 
+async def test_medical_history_not_found(async_client):
+    """Test 404 for medical history of non-existent case."""
+    resp = await async_client.get("/api/hospital/medical-history/nonexistent-id")
+    assert resp.status_code == 404
+
+
+async def test_medical_history_with_case(async_client):
+    """Test medical history returns structured FHIR-based report."""
+    create_resp = await async_client.post("/api/cases", json={})
+    case_id = create_resp.json()["id"]
+
+    resp = await async_client.get(f"/api/hospital/medical-history/{case_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "found" in data
+    assert "history" in data
+    assert "report_text" in data
+    assert data["found"] is True
+    assert len(data["history"]["conditions"]) > 0
+    assert len(data["history"]["allergies"]) > 0
+    assert len(data["history"]["medications"]) > 0
+    assert "MEDICAL HISTORY REPORT" in data["report_text"]
+
+
+async def test_medical_history_report_structure(async_client):
+    """Test medical history report has all expected sections."""
+    create_resp = await async_client.post("/api/cases", json={})
+    case_id = create_resp.json()["id"]
+
+    resp = await async_client.get(f"/api/hospital/medical-history/{case_id}")
+    data = resp.json()
+    history = data["history"]
+    assert isinstance(history["conditions"], list)
+    assert isinstance(history["allergies"], list)
+    assert isinstance(history["medications"], list)
+    assert isinstance(history["immunizations"], list)
+    assert isinstance(history["procedures"], list)
+    assert "source" in history
+    assert "fhir_patient_id" in history
+
+
 async def test_multiple_cases_ordering(async_client):
     """Test that cases are returned in reverse chronological order."""
     ids = []

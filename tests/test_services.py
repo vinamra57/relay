@@ -391,7 +391,25 @@ async def test_trigger_downstream():
     assert "John Smith" in gp_result
     assert "John Smith" in db_result
     assert "[GP STUB]" in gp_result
-    assert "[MEDICAL DB STUB]" in db_result
+    assert "MEDICAL HISTORY REPORT" in db_result
+
+
+async def test_trigger_downstream_with_dob():
+    """Test downstream passes DOB to medical DB when available."""
+    r = NEMSISRecord(
+        patient=NEMSISPatientInfo(
+            patient_name_first="Jane",
+            patient_name_last="Doe",
+            patient_age="32",
+            patient_gender="Female",
+            patient_address="456 Oak Ave",
+            patient_date_of_birth="1994-05-20",
+        ),
+    )
+    gp_result, db_result = await trigger_downstream(r)
+    assert "Jane Doe" in gp_result
+    assert "Jane Doe" in db_result
+    assert "DOB: 1994-05-20" in db_result
 
 
 # --- GP Caller Stub ---
@@ -409,7 +427,7 @@ async def test_gp_caller():
     assert "[GP STUB]" in result
 
 
-# --- Medical DB Stub ---
+# --- Medical DB (FHIR-backed, dummy mode) ---
 
 
 async def test_medical_db():
@@ -419,7 +437,9 @@ async def test_medical_db():
         patient_gender="Female",
     )
     assert "Jane Doe" in result
-    assert "[MEDICAL DB STUB]" in result
+    assert "MEDICAL HISTORY REPORT" in result
+    assert "Essential hypertension" in result
+    assert "Penicillin" in result
 
 
 # --- Summary Service (Dummy Mode) ---

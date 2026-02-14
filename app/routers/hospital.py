@@ -5,8 +5,10 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from app.database import get_db
+from app.models.medical_history import MedicalHistoryReport
 from app.models.summary import CaseSummary, HospitalSummary
 from app.services.event_bus import event_bus
+from app.services.medical_db import build_medical_history_report
 from app.services.summary import generate_summary, get_summary_for_hospital
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,45 @@ async def get_case_summary(
         return await generate_summary(case_id, urgency=urgency)
     except ValueError:
         raise HTTPException(status_code=404, detail="Case not found") from None
+
+
+@router.get("/medical-history/{case_id}", response_model=MedicalHistoryReport)
+async def get_medical_history(case_id: str):
+    """Get patient medical history from FHIR/HIE databases.
+
+    Queries connected health information exchanges for the patient's
+    medical history including conditions, allergies, medications,
+    immunizations, and past procedures.
+
+    Requires core patient info (name, age, gender) to be available.
+    """
+    db = await get_db()
+    row = await db.execute(
+        "SELECT patient_name, patient_age, patient_gender, nemsis_data FROM cases WHERE id = ?",
+        (case_id,),
+    )
+    case = await row.fetchone()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found") from None
+
+    patient_name = case["patient_name"] or "Unknown"
+    patient_age = case["patient_age"] or "Unknown"
+    patient_gender = case["patient_gender"] or "Unknown"
+
+    # Try to extract DOB from NEMSIS data
+    patient_dob = None
+    try:
+        nemsis = json.loads(case["nemsis_data"] or "{}")
+        patient_dob = nemsis.get("patient", {}).get("patient_date_of_birth")
+    except json.JSONDecodeError:
+        pass
+
+    return await build_medical_history_report(
+        patient_name=patient_name,
+        patient_age=patient_age,
+        patient_gender=patient_gender,
+        patient_dob=patient_dob,
+    )
 
 
 @router.get("/active-cases")

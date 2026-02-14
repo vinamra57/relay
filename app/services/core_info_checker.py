@@ -34,8 +34,9 @@ async def trigger_downstream(record: NEMSISRecord) -> tuple[str, str]:
     age = record.patient.patient_age or "Unknown"
     gender = record.patient.patient_gender or "Unknown"
     address = record.patient.patient_address or "Unknown"
+    dob = record.patient.patient_date_of_birth
 
-    logger.info(f"Core info complete for {name}. Triggering downstream lookups.")
+    logger.info("Core info complete for %s. Triggering downstream lookups.", name)
 
     gp_result, db_result = await asyncio.gather(
         call_gp(
@@ -48,6 +49,7 @@ async def trigger_downstream(record: NEMSISRecord) -> tuple[str, str]:
             patient_name=name,
             patient_age=age,
             patient_gender=gender,
+            patient_dob=dob,
         ),
     )
 
