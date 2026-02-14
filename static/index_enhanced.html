@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Health - AI Emergency Response System</title>
+    <link rel="stylesheet" href="/static/style_enhanced.css">
+</head>
+<body>
+    <!-- Top Header Bar -->
+    <div class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">⚕</span>
+                <span class="logo-text">ARIA HEALTH</span>
+            </div>
+            <span class="subtitle">AI Emergency Response System</span>
+        </div>
+        <div class="header-center">
+            <div class="scene-timer" id="sceneTimer">
+                <span class="timer-label">SCENE TIME</span>
+                <span class="timer-value" id="timerValue">00:00</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div id="recordingIndicator" class="recording-indicator" style="display: none;">
+                <div class="recording-dot"></div>
+                <span>LIVE</span>
+            </div>
+            <span id="statusBadge" class="status-badge status-idle">Standby</span>
+        </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls">
+        <div class="control-group">
+            <button id="btnNewCase" class="btn btn-primary" onclick="newCase()">
+                <span class="btn-icon">+</span> New Case
+            </button>
+            <button id="btnStartStream" class="btn btn-success" onclick="startStream()" disabled>
+                <span class="btn-icon">●</span> Start Recording
+            </button>
+            <button id="btnStopStream" class="btn btn-danger" onclick="stopStream()" disabled>
+                <span class="btn-icon">■</span> Stop
+            </button>
+        </div>
+        <div class="core-info-status">
+            <span class="core-label">CORE ID STATUS:</span>
+            <div class="core-indicators">
+                <div class="core-item" id="coreNameItem">
+                    <div class="core-dot" id="dotName"></div>
+                    <span>Name</span>
+                </div>
+                <div class="core-item" id="coreAddressItem">
+                    <div class="core-dot" id="dotAddress"></div>
+                    <span>Address</span>
+                </div>
+                <div class="core-item" id="coreAgeItem">
+                    <div class="core-dot" id="dotAge"></div>
+                    <span>Age</span>
+                </div>
+                <div class="core-item" id="coreGenderItem">
+                    <div class="core-dot" id="dotGender"></div>
+                    <span>Gender</span>
+                </div>
+            </div>
+            <div id="coreCompleteIndicator" class="core-complete-badge" style="display: none;">
+                ✓ CORE INFO COMPLETE - INITIATING PATIENT LOOKUP
+            </div>
+        </div>
+        <span id="caseIdDisplay" class="case-id"></span>
+    </div>
+
+    <!-- Main Three-Column Layout -->
+    <div class="main-container">
+        <!-- Column 1: Live Transcript -->
+        <div class="panel transcript-panel">
+            <div class="panel-header">
+                <div class="header-title">
+                    <span class="panel-icon">🎙</span>
+                    <span>LIVE TRANSCRIPT</span>
+                </div>
+                <span id="segmentCount" class="segment-badge">0 segments</span>
+            </div>
+            <div class="panel-body transcript-area" id="transcriptArea">
+                <div class="empty-state">
+                    <div class="empty-icon">🎤</div>
+                    <p>Waiting for voice input...</p>
+                    <p class="empty-hint">Start a new case and begin recording</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 2: NEMSIS ePCR Data -->
+        <div class="panel nemsis-panel">
+            <div class="panel-header">
+                <div class="header-title">
+                    <span class="panel-icon">📋</span>
+                    <span>NEMSIS ePCR</span>
+                </div>
+                <span class="nemsis-version">v3.5</span>
+            </div>
+            <div class="panel-body nemsis-area" id="nemsisArea">
+                <!-- Patient Info -->
+                <div class="nemsis-section">
+                    <h3>Patient Information</h3>
+                    <div class="nemsis-grid">
+                        <div class="nemsis-field"><span class="label">First Name</span><span class="value" id="nFirstName">--</span></div>
+                        <div class="nemsis-field"><span class="label">Last Name</span><span class="value" id="nLastName">--</span></div>
+                        <div class="nemsis-field"><span class="label">Age</span><span class="value" id="nAge">--</span></div>
+                        <div class="nemsis-field"><span class="label">Gender</span><span class="value" id="nGender">--</span></div>
+                        <div class="nemsis-field full-width"><span class="label">Address</span><span class="value" id="nAddress">--</span></div>
+                        <div class="nemsis-field"><span class="label">City</span><span class="value" id="nCity">--</span></div>
+                        <div class="nemsis-field"><span class="label">State</span><span class="value" id="nState">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Vitals -->
+                <div class="nemsis-section">
+                    <h3>Vitals</h3>
+                    <div class="vitals-grid">
+                        <div class="vital-card">
+                            <span class="vital-label">BP</span>
+                            <span class="vital-value" id="nBP">--/--</span>
+                            <span class="vital-unit">mmHg</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-label">HR</span>
+                            <span class="vital-value" id="nHR">--</span>
+                            <span class="vital-unit">bpm</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-label">RR</span>
+                            <span class="vital-value" id="nRR">--</span>
+                            <span class="vital-unit">/min</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-label">SpO2</span>
+                            <span class="vital-value" id="nSpO2">--</span>
+                            <span class="vital-unit">%</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-label">Glucose</span>
+                            <span class="vital-value" id="nGlucose">--</span>
+                            <span class="vital-unit">mg/dL</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-label">GCS</span>
+                            <span class="vital-value" id="nGCS">--</span>
+                            <span class="vital-unit">/15</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Situation -->
+                <div class="nemsis-section">
+                    <h3>Situation</h3>
+                    <div class="nemsis-grid">
+                        <div class="nemsis-field full-width"><span class="label">Chief Complaint</span><span class="value highlight" id="nChief">--</span></div>
+                        <div class="nemsis-field"><span class="label">Primary Impression</span><span class="value" id="nPrimary">--</span></div>
+                        <div class="nemsis-field"><span class="label">Secondary Impression</span><span class="value" id="nSecondary">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Procedures & Medications -->
+                <div class="nemsis-section">
+                    <h3>Interventions</h3>
+                    <div class="interventions-grid">
+                        <div class="intervention-list">
+                            <h4>Procedures</h4>
+                            <ul id="nProcedures">
+                                <li class="empty">None recorded</li>
+                            </ul>
+                        </div>
+                        <div class="intervention-list">
+                            <h4>Medications</h4>
+                            <ul id="nMedications">
+                                <li class="empty">None recorded</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 3: Patient History Sources -->
+        <div class="panel sources-panel">
+            <div class="panel-header">
+                <div class="header-title">
+                    <span class="panel-icon">🔍</span>
+                    <span>PATIENT HISTORY LOOKUP</span>
+                </div>
+                <span id="sourcesStatus" class="sources-status">Waiting for Core ID</span>
+            </div>
+            <div class="panel-body sources-area">
+                <!-- Status Message -->
+                <div id="sourcesMessage" class="sources-message">
+                    <div class="waiting-icon">⏳</div>
+                    <p>Awaiting core patient identification...</p>
+                    <p class="hint">Name, Address, Age, Gender required to initiate lookup</p>
+                </div>
+
+                <!-- Data Sources Grid -->
+                <div id="sourcesGrid" class="sources-grid" style="display: none;">
+                    <div class="source-category">
+                        <h3>🏥 Health Information Exchanges</h3>
+                        <div class="source-item" id="sourceHIE">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">Regional HIE Network</span>
+                                <span class="source-desc">Hospital records, discharge summaries</span>
+                            </div>
+                            <div class="source-result" id="resultHIE"></div>
+                        </div>
+                        <div class="source-item" id="sourceParticle">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">Particle Health API</span>
+                                <span class="source-desc">Aggregated patient data network</span>
+                            </div>
+                            <div class="source-result" id="resultParticle"></div>
+                        </div>
+                    </div>
+
+                    <div class="source-category">
+                        <h3>📊 Clinical Data Sources</h3>
+                        <div class="source-item" id="sourceFHIR">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">FHIR R4 / Synthea</span>
+                                <span class="source-desc">Standardized health records</span>
+                            </div>
+                            <div class="source-result" id="resultFHIR"></div>
+                        </div>
+                        <div class="source-item" id="sourceEHR">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">EHR Systems Query</span>
+                                <span class="source-desc">Epic, Cerner, Allscripts</span>
+                            </div>
+                            <div class="source-result" id="resultEHR"></div>
+                        </div>
+                    </div>
+
+                    <div class="source-category">
+                        <h3>💊 Pharmacy & Medications</h3>
+                        <div class="source-item" id="sourcePDMP">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">PDMP Registry</span>
+                                <span class="source-desc">Prescription drug monitoring</span>
+                            </div>
+                            <div class="source-result" id="resultPDMP"></div>
+                        </div>
+                        <div class="source-item" id="sourcePharmacy">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">Pharmacy Networks</span>
+                                <span class="source-desc">CVS, Walgreens, retail chains</span>
+                            </div>
+                            <div class="source-result" id="resultPharmacy"></div>
+                        </div>
+                    </div>
+
+                    <div class="source-category">
+                        <h3>🛡️ Public Health Records</h3>
+                        <div class="source-item" id="sourceIIS">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">Immunization Registry</span>
+                                <span class="source-desc">State IIS database</span>
+                            </div>
+                            <div class="source-result" id="resultIIS"></div>
+                        </div>
+                        <div class="source-item" id="sourceGP">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">Primary Care Provider</span>
+                                <span class="source-desc">GP practice records</span>
+                            </div>
+                            <div class="source-result" id="resultGP"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aggregated Patient History -->
+                <div id="patientHistory" class="patient-history" style="display: none;">
+                    <div class="history-header">
+                        <h3>📁 Aggregated Patient History</h3>
+                        <span class="history-sources">Data from <span id="sourceCount">0</span> sources</span>
+                    </div>
+                    
+                    <div class="history-section allergies-section">
+                        <h4>⚠️ ALLERGIES & ALERTS</h4>
+                        <div class="history-content" id="historyAllergies">
+                            <span class="no-data">Checking...</span>
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <h4>💊 Current Medications</h4>
+                        <div class="history-content" id="historyMedications">
+                            <span class="no-data">Checking...</span>
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <h4>🩺 Medical Conditions</h4>
+                        <div class="history-content" id="historyConditions">
+                            <span class="no-data">Checking...</span>
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <h4>💉 Recent Immunizations</h4>
+                        <div class="history-content" id="historyImmunizations">
+                            <span class="no-data">Checking...</span>
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <h4>🏥 Recent Procedures</h4>
+                        <div class="history-content" id="historyProcedures">
+                            <span class="no-data">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clinical Decision Support -->
+                <div id="clinicalAlerts" class="clinical-alerts" style="display: none;">
+                    <div class="alert-header">
+                        <h3>🚨 Clinical Decision Support</h3>
+                    </div>
+                    <div class="alerts-content" id="alertsContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hospital Notification Banner -->
+    <div id="hospitalBanner" class="hospital-banner" style="display: none;">
+        <div class="banner-content">
+            <span class="banner-icon">🏥</span>
+            <span class="banner-text">Hospital notified - Patient data transmitted to ER</span>
+            <span class="banner-time" id="bannerTime"></span>
+        </div>
+    </div>
+
+    <script src="/static/app_enhanced.js"></script>
+</body>
+</html>
