@@ -16,6 +16,7 @@ DUMMY_SEGMENTS = [
     "located at 742 Evergreen Terrace Springfield Illinois",
     "Chief complaint is chest pain radiating to left arm",
     "Started approximately 30 minutes ago",
+    "Patient is alert and oriented and reports pain 8 out of 10",
     "Patient reports shortness of breath and diaphoresis",
     "Blood pressure is 160 over 95",
     "Heart rate 110 beats per minute",
@@ -23,13 +24,15 @@ DUMMY_SEGMENTS = [
     "SPO2 94 percent on room air",
     "Blood glucose 145",
     "GCS 15 eyes 4 verbal 5 motor 6",
+    "Patient history includes hypertension and diabetes type 2",
+    "Patient reports no known allergies NKDA",
     "Administering aspirin 324 milligrams chewed",
     "Establishing IV access right antecubital",
     "Administering nitroglycerin 0.4 milligrams sublingual",
     "12 lead ECG shows ST elevation in leads V1 through V4",
     "Primary impression is STEMI",
     "Activating cardiac catheterization lab",
-    "Patient history includes hypertension and diabetes type 2",
+    "Transporting to Springfield General Hospital",
 ]
 
 

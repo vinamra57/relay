@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-SYSTEM_PROMPT = """You are an EMS data extraction AI specialized in NEMSIS-compliant ePCR (Electronic Patient Care Report) fields.
+SYSTEM_PROMPT = """You are an EMS data extraction AI specialized in NEMSIS v3.5-compliant ePCR (Electronic Patient Care Report) fields.
 
 Your task: Extract structured medical data from paramedic voice transcripts.
 
@@ -21,7 +21,14 @@ Rules:
 - For procedures and medications, list each one mentioned.
 - For gender, use: "Male", "Female", or "Unknown".
 - Be precise with medical terminology in primary_impression and secondary_impression.
-- Extract any mentioned location/address into the patient address fields."""
+- Extract any mentioned location/address into the patient address fields.
+- For GCS, extract individual components (eye, verbal, motor) when mentioned.
+- For temperature, extract in Fahrenheit or Celsius as mentioned.
+- For pain_scale, extract 0-10 numeric value.
+- For medical_history, extract conditions like "hypertension", "diabetes", etc.
+- For allergies, extract any mentioned drug or environmental allergies.
+- For disposition fields, extract transport destination and mode if mentioned.
+- For times, extract any mentioned timestamps (e.g. "dispatched at 14:30")."""
 
 
 async def extract_nemsis(transcript: str, existing: NEMSISRecord | None = None) -> NEMSISRecord:
@@ -137,6 +144,20 @@ def _dummy_extract(transcript: str) -> NEMSISRecord:
         record.vitals.blood_glucose = 145.0
     if "gcs 15" in text:
         record.vitals.gcs_total = 15
+    if "eyes 4" in text:
+        record.vitals.gcs_eye = 4
+    if "verbal 5" in text:
+        record.vitals.gcs_verbal = 5
+    if "motor 6" in text:
+        record.vitals.gcs_motor = 6
+    if "temperature 101" in text or "temp 101" in text:
+        record.vitals.temperature = 101.0
+    if "pain" in text and ("8 out of 10" in text or "8/10" in text):
+        record.vitals.pain_scale = 8
+    if "alert and oriented" in text:
+        record.vitals.level_of_consciousness = "Alert and oriented"
+    elif "unresponsive" in text:
+        record.vitals.level_of_consciousness = "Unresponsive"
 
     # Extract situation
     if "chest pain" in text:
@@ -145,6 +166,8 @@ def _dummy_extract(transcript: str) -> NEMSISRecord:
         record.situation.primary_impression = "STEMI"
     if "st elevation" in text:
         record.situation.secondary_impression = "ST elevation in leads V1-V4"
+    if "30 minutes ago" in text:
+        record.situation.complaint_duration = "30 minutes"
 
     # Extract procedures
     procedures = []
@@ -154,6 +177,8 @@ def _dummy_extract(transcript: str) -> NEMSISRecord:
         procedures.append("12-lead ECG")
     if "cardiac catheterization" in text or "cath lab" in text:
         procedures.append("Cardiac catheterization lab activation")
+    if "intubation" in text or "intubated" in text:
+        procedures.append("Endotracheal intubation")
     if procedures:
         record.procedures.procedures = procedures
 
@@ -163,7 +188,49 @@ def _dummy_extract(transcript: str) -> NEMSISRecord:
         medications.append("Aspirin 324mg PO")
     if "nitroglycerin" in text:
         medications.append("Nitroglycerin 0.4mg SL")
+    if "morphine" in text:
+        medications.append("Morphine 4mg IV")
+    if "epinephrine" in text:
+        medications.append("Epinephrine 1mg IV")
     if medications:
         record.medications.medications = medications
+
+    # Extract history
+    history_conditions = []
+    if "hypertension" in text or "high blood pressure" in text:
+        history_conditions.append("Hypertension")
+    if "diabetes" in text:
+        history_conditions.append("Diabetes mellitus type 2")
+    if "copd" in text:
+        history_conditions.append("COPD")
+    if "asthma" in text:
+        history_conditions.append("Asthma")
+    if "coronary artery disease" in text or "cad" in text:
+        history_conditions.append("Coronary artery disease")
+    if history_conditions:
+        record.history.medical_history = history_conditions
+
+    # Extract allergies
+    allergies = []
+    if "allergic to penicillin" in text or "penicillin allergy" in text:
+        allergies.append("Penicillin")
+    if "no known allergies" in text or "nkda" in text:
+        allergies.append("NKDA")
+    if "allergic to sulfa" in text:
+        allergies.append("Sulfonamides")
+    if allergies:
+        record.history.allergies = allergies
+
+    # Extract disposition
+    if "transporting to" in text or "en route to" in text:
+        record.disposition.transport_mode = "Ground ambulance"
+        record.disposition.transport_disposition = "Transported by EMS"
+    if "general hospital" in text:
+        record.disposition.destination_facility = "Springfield General Hospital"
+        record.disposition.destination_type = "Hospital"
+    if "cath lab" in text and "activating" in text:
+        record.disposition.hospital_team_activation = ["Cardiac catheterization team"]
+    if "trauma" in text and "team" in text:
+        record.disposition.hospital_team_activation = ["Trauma team"]
 
     return record

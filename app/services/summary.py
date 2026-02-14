@@ -142,6 +142,7 @@ def _dummy_case_summary(data: dict) -> CaseSummary:
     situation = nemsis.get("situation", {})
     procedures = nemsis.get("procedures", {})
     medications = nemsis.get("medications", {})
+    history = nemsis.get("history", {})
 
     # Build name
     first = patient.get("patient_name_first") or ""
@@ -167,6 +168,9 @@ def _dummy_case_summary(data: dict) -> CaseSummary:
         parts.append(
             f"Interventions include {len(proc_list)} procedure(s) and {len(med_list)} medication(s)."
         )
+    med_history = history.get("medical_history") or []
+    if med_history:
+        parts.append(f"PMH: {', '.join(med_history)}.")
 
     # Key findings
     findings: list[str] = []
@@ -180,6 +184,8 @@ def _dummy_case_summary(data: dict) -> CaseSummary:
         findings.append(f"SpO2 {vitals['spo2']}%")
     if vitals.get("gcs_total"):
         findings.append(f"GCS {vitals['gcs_total']}")
+    if vitals.get("pain_scale") is not None:
+        findings.append(f"Pain {vitals['pain_scale']}/10")
     if impression:
         findings.append(impression)
     if not findings:
@@ -213,6 +219,7 @@ def _dummy_hospital_summary(data: dict) -> HospitalSummary:
     situation = nemsis.get("situation", {})
     procedures = nemsis.get("procedures", {})
     medications = nemsis.get("medications", {})
+    history_data = nemsis.get("history", {})
 
     first = patient.get("patient_name_first") or ""
     last = patient.get("patient_name_last") or ""
@@ -234,6 +241,10 @@ def _dummy_hospital_summary(data: dict) -> HospitalSummary:
         vitals_parts.append(f"Glucose {vitals['blood_glucose']}")
     if vitals.get("gcs_total"):
         vitals_parts.append(f"GCS {vitals['gcs_total']}")
+    if vitals.get("temperature"):
+        vitals_parts.append(f"Temp {vitals['temperature']}F")
+    if vitals.get("pain_scale") is not None:
+        vitals_parts.append(f"Pain {vitals['pain_scale']}/10")
     vitals_str = ", ".join(vitals_parts) if vitals_parts else "No vitals recorded"
 
     proc_list = procedures.get("procedures") or []
@@ -266,9 +277,29 @@ def _dummy_hospital_summary(data: dict) -> HospitalSummary:
     if not preps:
         preps.append("Standard ED preparation")
 
-    gp = data.get("gp_response") or "No GP data available"
-    db_resp = data.get("medical_db_response") or "No database records"
-    history = f"GP: {gp} | Records: {db_resp}"
+    # Build patient history from multiple sources
+    history_parts: list[str] = []
+    med_history = history_data.get("medical_history") or []
+    if med_history:
+        history_parts.append(f"PMH: {', '.join(med_history)}")
+    gp = data.get("gp_response")
+    if gp:
+        history_parts.append(f"GP: {gp}")
+    db_resp = data.get("medical_db_response")
+    if db_resp:
+        history_parts.append(f"Records: {db_resp}")
+    history_str = " | ".join(history_parts) if history_parts else "No history available"
+
+    # Special considerations (allergies, disposition)
+    considerations: list[str] = []
+    allergies = history_data.get("allergies") or []
+    if allergies:
+        considerations.append(f"Allergies: {', '.join(allergies)}")
+    disposition = nemsis.get("disposition", {})
+    if disposition.get("destination_facility"):
+        considerations.append(f"Destination: {disposition['destination_facility']}")
+    if not considerations:
+        considerations.append("None noted")
 
     return HospitalSummary(
         patient_demographics=f"{name}, {age} year old {gender}",
@@ -278,7 +309,7 @@ def _dummy_hospital_summary(data: dict) -> HospitalSummary:
         medications_administered=", ".join(med_list) if med_list else "None administered",
         clinical_impression=clinical_str,
         recommended_preparations="; ".join(preps),
-        patient_history=history,
+        patient_history=history_str,
         priority_level=priority,
-        special_considerations="None noted",
+        special_considerations="; ".join(considerations),
     )

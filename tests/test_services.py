@@ -2,6 +2,7 @@
 
 
 from app.models.nemsis import (
+    NEMSISHistory,
     NEMSISPatientInfo,
     NEMSISProcedures,
     NEMSISRecord,
@@ -109,6 +110,100 @@ class TestDummyExtract:
         assert len(r.procedures.procedures) >= 2
         assert len(r.medications.medications) >= 2
 
+    # --- v3.5 Enhanced Fields ---
+
+    def test_extracts_gcs_components(self):
+        r = _dummy_extract("GCS 15 eyes 4 verbal 5 motor 6")
+        assert r.vitals.gcs_total == 15
+        assert r.vitals.gcs_eye == 4
+        assert r.vitals.gcs_verbal == 5
+        assert r.vitals.gcs_motor == 6
+
+    def test_extracts_temperature(self):
+        r = _dummy_extract("Temperature 101 degrees Fahrenheit")
+        assert r.vitals.temperature == 101.0
+
+    def test_extracts_pain_scale(self):
+        r = _dummy_extract("Patient reports pain 8 out of 10")
+        assert r.vitals.pain_scale == 8
+
+    def test_extracts_level_of_consciousness(self):
+        r = _dummy_extract("Patient is alert and oriented")
+        assert r.vitals.level_of_consciousness == "Alert and oriented"
+
+    def test_extracts_unresponsive(self):
+        r = _dummy_extract("Patient is unresponsive")
+        assert r.vitals.level_of_consciousness == "Unresponsive"
+
+    def test_extracts_medical_history(self):
+        r = _dummy_extract("Patient history includes hypertension and diabetes")
+        assert "Hypertension" in r.history.medical_history
+        assert "Diabetes mellitus type 2" in r.history.medical_history
+
+    def test_extracts_copd_history(self):
+        r = _dummy_extract("Patient has COPD and asthma")
+        assert "COPD" in r.history.medical_history
+        assert "Asthma" in r.history.medical_history
+
+    def test_extracts_allergies_nkda(self):
+        r = _dummy_extract("No known allergies NKDA")
+        assert "NKDA" in r.history.allergies
+
+    def test_extracts_penicillin_allergy(self):
+        r = _dummy_extract("Patient is allergic to penicillin")
+        assert "Penicillin" in r.history.allergies
+
+    def test_extracts_disposition_transport(self):
+        r = _dummy_extract("Transporting to Springfield General Hospital")
+        assert r.disposition.transport_mode == "Ground ambulance"
+        assert r.disposition.destination_facility == "Springfield General Hospital"
+        assert r.disposition.destination_type == "Hospital"
+
+    def test_extracts_cath_lab_activation(self):
+        r = _dummy_extract("Activating cath lab")
+        assert "Cardiac catheterization team" in r.disposition.hospital_team_activation
+
+    def test_extracts_complaint_duration(self):
+        r = _dummy_extract("Started approximately 30 minutes ago")
+        assert r.situation.complaint_duration == "30 minutes"
+
+    def test_extracts_intubation(self):
+        r = _dummy_extract("Performing intubation")
+        assert "Endotracheal intubation" in r.procedures.procedures
+
+    def test_extracts_morphine(self):
+        r = _dummy_extract("Administering morphine for pain")
+        assert "Morphine 4mg IV" in r.medications.medications
+
+    def test_full_v35_scenario(self):
+        transcript = (
+            "Patient is a 45 year old male named John David Smith "
+            "located at 742 Evergreen Terrace Springfield Illinois. "
+            "Patient is alert and oriented and reports pain 8 out of 10. "
+            "Chief complaint is chest pain started 30 minutes ago. "
+            "Blood pressure 160 over 95. Heart rate 110 beats per minute. "
+            "GCS 15 eyes 4 verbal 5 motor 6. SPO2 94 percent. "
+            "Patient history includes hypertension and diabetes. "
+            "No known allergies NKDA. "
+            "Administering aspirin 324mg. IV access. 12 lead ECG. "
+            "Primary impression is STEMI. Activating cath lab. "
+            "Transporting to Springfield General Hospital."
+        )
+        r = _dummy_extract(transcript)
+        # Core fields
+        assert r.patient.patient_name_first is not None
+        assert r.vitals.systolic_bp == 160
+        assert r.situation.primary_impression == "STEMI"
+        # v3.5 fields
+        assert r.vitals.gcs_eye == 4
+        assert r.vitals.pain_scale == 8
+        assert r.vitals.level_of_consciousness == "Alert and oriented"
+        assert r.situation.complaint_duration == "30 minutes"
+        assert len(r.history.medical_history) == 2
+        assert "NKDA" in r.history.allergies
+        assert r.disposition.destination_facility == "Springfield General Hospital"
+        assert "Cardiac catheterization team" in r.disposition.hospital_team_activation
+
 
 class TestMergeRecords:
     def test_merge_preserves_existing_non_null(self):
@@ -151,6 +246,21 @@ class TestMergeRecords:
         new = NEMSISRecord()
         merged = _merge_records(existing, new)
         assert merged.patient.patient_name_first is None
+
+    def test_merge_history_lists(self):
+        existing = NEMSISRecord(
+            history=NEMSISHistory(medical_history=["Hypertension"]),
+        )
+        new = NEMSISRecord(
+            history=NEMSISHistory(
+                medical_history=["Hypertension", "Diabetes"], allergies=["Penicillin"]
+            ),
+        )
+        merged = _merge_records(existing, new)
+        assert "Hypertension" in merged.history.medical_history
+        assert "Diabetes" in merged.history.medical_history
+        assert len(merged.history.medical_history) == 2  # no duplicates
+        assert "Penicillin" in merged.history.allergies
 
 
 async def test_extract_nemsis_dummy_mode():
@@ -334,6 +444,7 @@ STEMI_CASE_DATA = {
             "spo2": 94,
             "blood_glucose": 145.0,
             "gcs_total": 15,
+            "pain_scale": 8,
         },
         "situation": {
             "chief_complaint": "Chest pain radiating to left arm",
@@ -342,6 +453,13 @@ STEMI_CASE_DATA = {
         },
         "procedures": {"procedures": ["IV access", "12-lead ECG"]},
         "medications": {"medications": ["Aspirin 324mg PO", "Nitroglycerin 0.4mg SL"]},
+        "history": {
+            "medical_history": ["Hypertension", "Diabetes mellitus type 2"],
+            "allergies": ["NKDA"],
+        },
+        "disposition": {
+            "destination_facility": "Springfield General Hospital",
+        },
     },
     "patient_name": "John Smith",
     "patient_age": "45",
@@ -381,6 +499,12 @@ class TestDummyCaseSummary:
         assert "BP 160/95" in findings_str
         assert "HR 110" in findings_str
         assert "SpO2 94%" in findings_str
+        assert "Pain 8/10" in findings_str
+
+    def test_stemi_case_includes_pmh(self):
+        summary = _dummy_case_summary(STEMI_CASE_DATA)
+        assert "PMH" in summary.clinical_narrative
+        assert "Hypertension" in summary.clinical_narrative
 
     def test_empty_case(self):
         summary = _dummy_case_summary(EMPTY_CASE_DATA)
@@ -443,6 +567,16 @@ class TestDummyHospitalSummary:
         summary = _dummy_hospital_summary(STEMI_CASE_DATA)
         assert "GP" in summary.patient_history
         assert "Records" in summary.patient_history
+        assert "PMH" in summary.patient_history
+        assert "Hypertension" in summary.patient_history
+
+    def test_stemi_special_considerations_allergies(self):
+        summary = _dummy_hospital_summary(STEMI_CASE_DATA)
+        assert "NKDA" in summary.special_considerations
+
+    def test_stemi_special_considerations_destination(self):
+        summary = _dummy_hospital_summary(STEMI_CASE_DATA)
+        assert "Springfield General" in summary.special_considerations
 
     def test_empty_case_hospital_summary(self):
         summary = _dummy_hospital_summary(EMPTY_CASE_DATA)

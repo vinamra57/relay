@@ -2,11 +2,14 @@
 
 from app.models.case import CaseCreate, CaseListItem, CaseResponse, CaseStatusUpdate
 from app.models.nemsis import (
+    NEMSISDisposition,
+    NEMSISHistory,
     NEMSISMedications,
     NEMSISPatientInfo,
     NEMSISProcedures,
     NEMSISRecord,
     NEMSISSituation,
+    NEMSISTimes,
     NEMSISVitals,
 )
 from app.models.transcript import TranscriptResponse, TranscriptSegment
@@ -22,6 +25,8 @@ class TestNEMSISPatientInfo:
         assert p.patient_address is None
         assert p.patient_age is None
         assert p.patient_gender is None
+        assert p.patient_phone is None
+        assert p.patient_date_of_birth is None
 
     def test_set_fields(self):
         p = NEMSISPatientInfo(
@@ -62,9 +67,19 @@ class TestNEMSISVitals:
             spo2=98,
             blood_glucose=100.0,
             gcs_total=15,
+            gcs_eye=4,
+            gcs_verbal=5,
+            gcs_motor=6,
+            temperature=98.6,
+            pain_scale=3,
+            level_of_consciousness="Alert and oriented",
         )
         assert v.systolic_bp == 120
         assert v.gcs_total == 15
+        assert v.gcs_eye == 4
+        assert v.temperature == 98.6
+        assert v.pain_scale == 3
+        assert v.level_of_consciousness == "Alert and oriented"
 
 
 class TestNEMSISRecord:
@@ -75,6 +90,9 @@ class TestNEMSISRecord:
         assert r.situation is not None
         assert r.procedures is not None
         assert r.medications is not None
+        assert r.times is not None
+        assert r.disposition is not None
+        assert r.history is not None
 
     def test_independent_defaults(self):
         """Verify each NEMSISRecord gets independent sub-model instances."""
@@ -112,6 +130,74 @@ class TestNEMSISRecord:
         r = NEMSISRecord()
         assert r.procedures.procedures == []
         assert r.medications.medications == []
+        assert r.history.medical_history == []
+        assert r.history.allergies == []
+        assert r.disposition.hospital_team_activation == []
+
+
+class TestNEMSISTimes:
+    def test_defaults(self):
+        t = NEMSISTimes()
+        assert t.unit_notified is None
+        assert t.unit_arrived_scene is None
+        assert t.arrived_destination is None
+
+    def test_set_times(self):
+        t = NEMSISTimes(
+            unit_notified="2026-01-01T14:30:00",
+            unit_en_route="2026-01-01T14:32:00",
+            unit_arrived_scene="2026-01-01T14:40:00",
+            arrived_at_patient="2026-01-01T14:42:00",
+        )
+        assert t.unit_notified == "2026-01-01T14:30:00"
+        assert t.unit_arrived_scene == "2026-01-01T14:40:00"
+
+
+class TestNEMSISDisposition:
+    def test_defaults(self):
+        d = NEMSISDisposition()
+        assert d.destination_facility is None
+        assert d.transport_mode is None
+        assert d.hospital_team_activation == []
+
+    def test_full_disposition(self):
+        d = NEMSISDisposition(
+            destination_facility="Springfield General Hospital",
+            destination_type="Hospital",
+            transport_mode="Ground ambulance",
+            transport_disposition="Transported by EMS",
+            patient_acuity="Critical",
+            hospital_team_activation=["Cardiac catheterization team"],
+        )
+        assert d.destination_facility == "Springfield General Hospital"
+        assert len(d.hospital_team_activation) == 1
+
+
+class TestNEMSISHistory:
+    def test_defaults(self):
+        h = NEMSISHistory()
+        assert h.medical_history == []
+        assert h.allergies == []
+        assert h.current_medications == []
+        assert h.last_oral_intake is None
+
+    def test_full_history(self):
+        h = NEMSISHistory(
+            medical_history=["Hypertension", "Diabetes mellitus type 2"],
+            current_medications=["Metformin 500mg", "Lisinopril 10mg"],
+            allergies=["Penicillin"],
+            last_oral_intake="Lunch at 12:00",
+            alcohol_drug_use="Denies",
+        )
+        assert len(h.medical_history) == 2
+        assert "Penicillin" in h.allergies
+        assert h.alcohol_drug_use == "Denies"
+
+    def test_independent_list_defaults(self):
+        h1 = NEMSISHistory()
+        h2 = NEMSISHistory()
+        h1.medical_history.append("Test")
+        assert h2.medical_history == []
 
 
 # --- Case Models ---
