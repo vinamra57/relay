@@ -1,8 +1,6 @@
 """Tests for service modules - extraction, core info, stubs, transcription."""
 
 
-import pytest
-
 from app.models.nemsis import (
     NEMSISPatientInfo,
     NEMSISProcedures,
@@ -16,7 +14,7 @@ from app.services.core_info_checker import (
 from app.services.gp_caller import call_gp
 from app.services.medical_db import query_records
 from app.services.nemsis_extractor import _dummy_extract, _merge_records, extract_nemsis
-from app.services.summary import generate_summary, get_summary_for_hospital
+from app.services.summary import _dummy_case_summary, _dummy_hospital_summary
 
 # --- NEMSIS Extractor ---
 
@@ -314,14 +312,159 @@ async def test_medical_db():
     assert "[MEDICAL DB STUB]" in result
 
 
-# --- Summary Service Stubs ---
+# --- Summary Service (Dummy Mode) ---
 
 
-async def test_summary_not_implemented():
-    with pytest.raises(NotImplementedError):
-        await generate_summary("case-123")
+STEMI_CASE_DATA = {
+    "case_id": "test-123",
+    "transcript": "Patient is a 45 year old male with chest pain",
+    "nemsis": {
+        "patient": {
+            "patient_name_first": "John",
+            "patient_name_last": "Smith",
+            "patient_age": "45",
+            "patient_gender": "Male",
+            "patient_address": "742 Evergreen Terrace",
+        },
+        "vitals": {
+            "systolic_bp": 160,
+            "diastolic_bp": 95,
+            "heart_rate": 110,
+            "respiratory_rate": 22,
+            "spo2": 94,
+            "blood_glucose": 145.0,
+            "gcs_total": 15,
+        },
+        "situation": {
+            "chief_complaint": "Chest pain radiating to left arm",
+            "primary_impression": "STEMI",
+            "secondary_impression": "ST elevation in leads V1-V4",
+        },
+        "procedures": {"procedures": ["IV access", "12-lead ECG"]},
+        "medications": {"medications": ["Aspirin 324mg PO", "Nitroglycerin 0.4mg SL"]},
+    },
+    "patient_name": "John Smith",
+    "patient_age": "45",
+    "patient_gender": "Male",
+    "gp_response": "[GP STUB] History for John Smith",
+    "medical_db_response": "[MEDICAL DB STUB] Records for John Smith",
+}
+
+EMPTY_CASE_DATA = {
+    "case_id": "test-empty",
+    "transcript": "",
+    "nemsis": {},
+    "patient_name": "",
+    "patient_age": "",
+    "patient_gender": "",
+    "gp_response": "",
+    "medical_db_response": "",
+}
 
 
-async def test_hospital_summary_not_implemented():
-    with pytest.raises(NotImplementedError):
-        await get_summary_for_hospital("case-123")
+class TestDummyCaseSummary:
+    def test_stemi_case_returns_critical(self):
+        summary = _dummy_case_summary(STEMI_CASE_DATA)
+        assert summary.urgency == "critical"
+        assert "John Smith" in summary.one_liner
+        assert "STEMI" in summary.clinical_narrative
+        assert len(summary.key_findings) >= 4
+        assert len(summary.actions_taken) == 4  # 2 procedures + 2 meds
+
+    def test_stemi_case_one_liner_length(self):
+        summary = _dummy_case_summary(STEMI_CASE_DATA)
+        assert len(summary.one_liner) <= 100
+
+    def test_stemi_case_key_findings_include_vitals(self):
+        summary = _dummy_case_summary(STEMI_CASE_DATA)
+        findings_str = " ".join(summary.key_findings)
+        assert "BP 160/95" in findings_str
+        assert "HR 110" in findings_str
+        assert "SpO2 94%" in findings_str
+
+    def test_empty_case(self):
+        summary = _dummy_case_summary(EMPTY_CASE_DATA)
+        assert summary.urgency == "moderate"
+        assert "Unknown patient" in summary.one_liner
+        assert "No vitals recorded" in summary.key_findings
+        assert summary.actions_taken == []
+
+    def test_high_urgency_tachycardia(self):
+        data = {
+            **EMPTY_CASE_DATA,
+            "nemsis": {
+                "vitals": {"heart_rate": 130},
+                "patient": {},
+                "situation": {},
+                "procedures": {},
+                "medications": {},
+            },
+        }
+        summary = _dummy_case_summary(data)
+        assert summary.urgency == "high"
+
+    def test_critical_urgency_low_spo2(self):
+        data = {
+            **EMPTY_CASE_DATA,
+            "nemsis": {
+                "vitals": {"spo2": 85},
+                "patient": {},
+                "situation": {},
+                "procedures": {},
+                "medications": {},
+            },
+        }
+        summary = _dummy_case_summary(data)
+        assert summary.urgency == "critical"
+
+
+class TestDummyHospitalSummary:
+    def test_stemi_case_hospital_summary(self):
+        summary = _dummy_hospital_summary(STEMI_CASE_DATA)
+        assert summary.priority_level == "critical"
+        assert "John Smith" in summary.patient_demographics
+        assert "45" in summary.patient_demographics
+        assert "STEMI" in summary.clinical_impression
+        assert "catheterization" in summary.recommended_preparations.lower()
+        assert "Chest pain" in summary.chief_complaint
+
+    def test_stemi_vitals_string(self):
+        summary = _dummy_hospital_summary(STEMI_CASE_DATA)
+        assert "BP 160/95" in summary.vitals_summary
+        assert "HR 110" in summary.vitals_summary
+        assert "SpO2 94%" in summary.vitals_summary
+
+    def test_stemi_procedures_and_meds(self):
+        summary = _dummy_hospital_summary(STEMI_CASE_DATA)
+        assert "IV access" in summary.procedures_performed
+        assert "Aspirin" in summary.medications_administered
+
+    def test_stemi_patient_history(self):
+        summary = _dummy_hospital_summary(STEMI_CASE_DATA)
+        assert "GP" in summary.patient_history
+        assert "Records" in summary.patient_history
+
+    def test_empty_case_hospital_summary(self):
+        summary = _dummy_hospital_summary(EMPTY_CASE_DATA)
+        assert summary.priority_level == "moderate"
+        assert "Unknown" in summary.patient_demographics
+        assert summary.vitals_summary == "No vitals recorded"
+        assert summary.procedures_performed == "None recorded"
+        assert summary.medications_administered == "None administered"
+        assert "Standard ED" in summary.recommended_preparations
+
+    def test_stroke_case_preps(self):
+        data = {
+            **EMPTY_CASE_DATA,
+            "nemsis": {
+                "patient": {"patient_name_first": "Jane"},
+                "vitals": {},
+                "situation": {"primary_impression": "Acute stroke"},
+                "procedures": {},
+                "medications": {},
+            },
+        }
+        summary = _dummy_hospital_summary(data)
+        assert summary.priority_level == "critical"
+        assert "CT scanner" in summary.recommended_preparations
+        assert "Neurology" in summary.recommended_preparations

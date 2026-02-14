@@ -115,13 +115,57 @@ async def test_update_case_not_found(async_client):
     assert resp.status_code == 404
 
 
-async def test_hospital_summary_stub(async_client):
-    """Test hospital summary stub endpoint."""
-    resp = await async_client.get("/api/hospital/summary/test-case-1")
+async def test_hospital_summary_not_found(async_client):
+    """Test 404 for hospital summary of non-existent case."""
+    resp = await async_client.get("/api/hospital/summary/nonexistent-id")
+    assert resp.status_code == 404
+
+
+async def test_hospital_summary_with_case(async_client):
+    """Test hospital summary returns structured data for a real case."""
+    create_resp = await async_client.post("/api/cases", json={})
+    case_id = create_resp.json()["id"]
+
+    resp = await async_client.get(f"/api/hospital/summary/{case_id}")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "interface_ready"
-    assert "expected_sections" in data
+    assert "patient_demographics" in data
+    assert "chief_complaint" in data
+    assert "vitals_summary" in data
+    assert "priority_level" in data
+    assert data["priority_level"] in ("critical", "high", "moderate", "low")
+
+
+async def test_case_summary_not_found(async_client):
+    """Test 404 for case summary of non-existent case."""
+    resp = await async_client.get("/api/hospital/case-summary/nonexistent-id")
+    assert resp.status_code == 404
+
+
+async def test_case_summary_with_case(async_client):
+    """Test case summary returns structured data for a real case."""
+    create_resp = await async_client.post("/api/cases", json={})
+    case_id = create_resp.json()["id"]
+
+    resp = await async_client.get(f"/api/hospital/case-summary/{case_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "one_liner" in data
+    assert "clinical_narrative" in data
+    assert "key_findings" in data
+    assert isinstance(data["key_findings"], list)
+    assert "urgency" in data
+
+
+async def test_case_summary_invalid_urgency(async_client):
+    """Test that invalid urgency is rejected."""
+    create_resp = await async_client.post("/api/cases", json={})
+    case_id = create_resp.json()["id"]
+
+    resp = await async_client.get(
+        f"/api/hospital/case-summary/{case_id}?urgency=invalid"
+    )
+    assert resp.status_code == 422
 
 
 async def test_serve_index(async_client):
