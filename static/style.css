@@ -1,0 +1,291 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0e17;
+    color: #e0e6f0;
+    min-height: 100vh;
+}
+
+.header {
+    background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+    border-bottom: 2px solid #c0392b;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+.header .status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-active { background: #27ae60; color: #fff; }
+.status-idle { background: #7f8c8d; color: #fff; }
+.status-error { background: #c0392b; color: #fff; }
+
+.main-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+    height: calc(100vh - 60px);
+}
+
+.panel {
+    background: #141822;
+    border: 1px solid #2a3042;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #2a3042;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8892a8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* Controls */
+.controls {
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    border-bottom: 1px solid #2a3042;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #c0392b;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #e74c3c;
+}
+
+.btn-primary:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: #2a3042;
+    color: #e0e6f0;
+}
+
+.btn-secondary:hover {
+    background: #3a4052;
+}
+
+.btn-success {
+    background: #27ae60;
+    color: #fff;
+}
+
+/* Transcript */
+.transcript-area {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.transcript-segment {
+    padding: 6px 0;
+    border-bottom: 1px solid #1a1f2e;
+}
+
+.transcript-segment .time {
+    color: #5a6578;
+    font-size: 11px;
+    margin-right: 8px;
+}
+
+.transcript-partial {
+    color: #7f8c8d;
+    font-style: italic;
+    padding: 6px 0;
+}
+
+/* NEMSIS Fields */
+.nemsis-section {
+    margin-bottom: 16px;
+}
+
+.nemsis-section h3 {
+    font-size: 13px;
+    color: #c0392b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #2a3042;
+}
+
+.nemsis-field {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.nemsis-field .label {
+    color: #8892a8;
+}
+
+.nemsis-field .value {
+    color: #e0e6f0;
+    font-weight: 500;
+    text-align: right;
+    max-width: 60%;
+}
+
+.nemsis-field .value.empty {
+    color: #3a4052;
+}
+
+.nemsis-field .value.filled {
+    color: #2ecc71;
+}
+
+/* Core info indicator */
+.core-info-bar {
+    padding: 8px 16px;
+    background: #1a1f2e;
+    border-bottom: 1px solid #2a3042;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.core-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.core-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3a4052;
+}
+
+.core-dot.complete {
+    background: #2ecc71;
+}
+
+/* Downstream responses */
+.downstream-section {
+    margin-top: 12px;
+    padding: 12px;
+    background: #1a1f2e;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #8892a8;
+}
+
+.downstream-section h4 {
+    color: #f39c12;
+    margin-bottom: 6px;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+/* Recording indicator */
+.recording-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #c0392b;
+}
+
+.recording-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #c0392b;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* List items for procedures/medications */
+.list-items {
+    list-style: none;
+    padding: 0;
+}
+
+.list-items li {
+    padding: 2px 0;
+    font-size: 13px;
+    color: #e0e6f0;
+}
+
+.list-items li::before {
+    content: "- ";
+    color: #5a6578;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0a0e17;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2a3042;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #3a4052;
+}

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Health - Paramedic ePCR</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>ARIA HEALTH - Paramedic ePCR</h1>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div id="recordingIndicator" class="recording-indicator" style="display: none;">
+                <div class="recording-dot"></div>
+                <span>RECORDING</span>
+            </div>
+            <span id="statusBadge" class="status-badge status-idle">Idle</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="btnNewCase" class="btn btn-primary" onclick="newCase()">New Case</button>
+        <button id="btnStartStream" class="btn btn-success" onclick="startStream()" disabled>Start Recording</button>
+        <button id="btnStopStream" class="btn btn-secondary" onclick="stopStream()" disabled>Stop Recording</button>
+        <span id="caseIdDisplay" style="color: #5a6578; font-size: 12px; margin-left: auto;"></span>
+    </div>
+
+    <div class="core-info-bar">
+        <span style="color: #5a6578;">Core Info:</span>
+        <div class="core-field"><div id="dotName" class="core-dot"></div> Name</div>
+        <div class="core-field"><div id="dotAddress" class="core-dot"></div> Address</div>
+        <div class="core-field"><div id="dotAge" class="core-dot"></div> Age</div>
+        <div class="core-field"><div id="dotGender" class="core-dot"></div> Gender</div>
+    </div>
+
+    <div class="main-container">
+        <!-- Left: Live Transcript -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>Live Transcript</span>
+                <span id="segmentCount" style="font-size: 11px; color: #3a4052;">0 segments</span>
+            </div>
+            <div class="panel-body transcript-area" id="transcriptArea">
+                <div style="color: #3a4052; text-align: center; padding-top: 40px;">
+                    Start a new case and begin recording to see live transcription.
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: NEMSIS ePCR Data -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>NEMSIS ePCR Data</span>
+            </div>
+            <div class="panel-body" id="nemsisArea">
+                <!-- Patient Info -->
+                <div class="nemsis-section">
+                    <h3>Patient Information</h3>
+                    <div class="nemsis-field"><span class="label">First Name</span><span class="value empty" id="nFirstName">--</span></div>
+                    <div class="nemsis-field"><span class="label">Last Name</span><span class="value empty" id="nLastName">--</span></div>
+                    <div class="nemsis-field"><span class="label">Age</span><span class="value empty" id="nAge">--</span></div>
+                    <div class="nemsis-field"><span class="label">Gender</span><span class="value empty" id="nGender">--</span></div>
+                    <div class="nemsis-field"><span class="label">Address</span><span class="value empty" id="nAddress">--</span></div>
+                    <div class="nemsis-field"><span class="label">City</span><span class="value empty" id="nCity">--</span></div>
+                    <div class="nemsis-field"><span class="label">State</span><span class="value empty" id="nState">--</span></div>
+                </div>
+
+                <!-- Vitals -->
+                <div class="nemsis-section">
+                    <h3>Vitals</h3>
+                    <div class="nemsis-field"><span class="label">BP (Sys/Dia)</span><span class="value empty" id="nBP">--/--</span></div>
+                    <div class="nemsis-field"><span class="label">Heart Rate</span><span class="value empty" id="nHR">--</span></div>
+                    <div class="nemsis-field"><span class="label">Resp. Rate</span><span class="value empty" id="nRR">--</span></div>
+                    <div class="nemsis-field"><span class="label">SpO2</span><span class="value empty" id="nSpO2">--</span></div>
+                    <div class="nemsis-field"><span class="label">Blood Glucose</span><span class="value empty" id="nGlucose">--</span></div>
+                    <div class="nemsis-field"><span class="label">GCS Total</span><span class="value empty" id="nGCS">--</span></div>
+                </div>
+
+                <!-- Situation -->
+                <div class="nemsis-section">
+                    <h3>Situation</h3>
+                    <div class="nemsis-field"><span class="label">Chief Complaint</span><span class="value empty" id="nChief">--</span></div>
+                    <div class="nemsis-field"><span class="label">Primary Impression</span><span class="value empty" id="nPrimary">--</span></div>
+                    <div class="nemsis-field"><span class="label">Secondary Impression</span><span class="value empty" id="nSecondary">--</span></div>
+                    <div class="nemsis-field"><span class="label">Injury Cause</span><span class="value empty" id="nInjury">--</span></div>
+                </div>
+
+                <!-- Procedures -->
+                <div class="nemsis-section">
+                    <h3>Procedures</h3>
+                    <ul class="list-items" id="nProcedures">
+                        <li style="color: #3a4052;">None recorded</li>
+                    </ul>
+                </div>
+
+                <!-- Medications -->
+                <div class="nemsis-section">
+                    <h3>Medications</h3>
+                    <ul class="list-items" id="nMedications">
+                        <li style="color: #3a4052;">None recorded</li>
+                    </ul>
+                </div>
+
+                <!-- Downstream Responses -->
+                <div id="downstreamSection" style="display: none;">
+                    <div class="downstream-section">
+                        <h4>GP Response</h4>
+                        <p id="gpResponse"></p>
+                    </div>
+                    <div class="downstream-section" style="margin-top: 8px;">
+                        <h4>Medical Database Response</h4>
+                        <p id="medDbResponse"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

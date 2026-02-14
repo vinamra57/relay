@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Health - Hospital View</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>ARIA HEALTH - Hospital Dashboard</h1>
+        <span class="status-badge status-idle">Interface Ready</span>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: center; height: calc(100vh - 60px); text-align: center;">
+        <div>
+            <h2 style="color: #8892a8; margin-bottom: 16px;">Hospital Dashboard</h2>
+            <p style="color: #5a6578; max-width: 500px; line-height: 1.6;">
+                This interface will display real-time patient summaries from incoming ambulance cases.
+                The summary generation service and live updates will be connected here.
+            </p>
+            <p style="color: #3a4052; margin-top: 24px; font-size: 13px;">
+                API endpoint ready at: GET /api/hospital/summary/{case_id}
+            </p>
+        </div>
+    </div>
+</body>
+</html>
