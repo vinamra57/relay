@@ -610,6 +610,11 @@ body {
     opacity: 0.6;
 }
 
+.source-item.warning {
+    border-color: #eab308;
+    background: rgba(234, 179, 8, 0.1);
+}
+
 .source-status {
     width: 12px;
     height: 12px;
@@ -639,6 +644,10 @@ body {
 
 .source-status.failed {
     background: var(--accent-red);
+}
+
+.source-status.warning {
+    background: #eab308;
 }
 
 .source-info {

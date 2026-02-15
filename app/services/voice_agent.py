@@ -75,8 +75,16 @@ async def place_gp_call(
         f"The patient is on the way to the hospital. Reason for transport: {situation}."
     )
 
-    # Dynamic variables fill {{placeholders}} in the ElevenLabs agent prompt.
-    # See docs/GP_CALL_AGENT_PROMPT.md for the script to paste into your ElevenLabs agent.
+    # First message the agent says (medical records request). Overrides dashboard so we don't get "how can I help you".
+    first_message = (
+        f"Hi, this is Relay calling about one of your patients, {patient_name}, age {patient_age or 'unknown'}. "
+        f"{reason_for_call} "
+        f"We're requesting their medical records so the hospital can prepare. "
+        f"Can you share any relevant records—allergies, medications, conditions, recent notes—to {email}? "
+        f"If you need any more details from us, ask and I'll give you what we have. "
+        f"If we don't have something, I'll let you know and you can call us back on {relay_callback}."
+    )
+
     payload = {
         "agent_id": ELEVENLABS_AGENT_ID,
         "agent_phone_number_id": ELEVENLABS_PHONE_NUMBER_ID,
@@ -94,6 +102,11 @@ async def place_gp_call(
                 "records_email": email,
                 "relay_callback_number": relay_callback,
                 "case_id": case_id or "unknown",
+            },
+            "conversation_config_override": {
+                "agent": {
+                    "first_message": first_message,
+                },
             },
         },
     }

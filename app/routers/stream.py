@@ -11,7 +11,7 @@ from app.config import GP_DOCUMENT_DELAY_SECONDS
 from app.database import get_db
 from app.models.nemsis import NEMSISRecord
 from app.services.core_info_checker import is_core_info_complete, is_gp_call_ready, trigger_gp_call, trigger_medical_db
-from app.services.gp_documents import load_gp_document_for_patient
+from app.gp_pdf_registry import load_gp_record_for_patient
 from app.services.nemsis_extractor import extract_nemsis
 from app.services.transcription import TranscriptionService
 # from app.services.vitals_dataset import VitalsSequence, load_demo_vitals
@@ -293,14 +293,17 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                                 await _safe_send({"type": "gp_call_triggered", "message": "Initiating GP call for patient history..."})
                                 gp_response = await trigger_gp_call(nemsis_for_gp, case_id)
                                 await _safe_send({"type": "gp_call_complete", "gp_response": gp_response})
-                                # After delay, "deliver" GP document (only for matching patient name)
+                                # After delay, simulate GP sending records: only if name matches a PDF do we "receive" and record in DB
                                 await asyncio.sleep(GP_DOCUMENT_DELAY_SECONDS)
                                 patient_name = " ".join(filter(None, [
                                     nemsis_for_gp.patient.patient_name_first,
                                     nemsis_for_gp.patient.patient_name_last,
                                 ])) or "Unknown"
-                                _raw, doc_summary = load_gp_document_for_patient(patient_name)
-                                gp_response_text = doc_summary if doc_summary else "No data found from the GP."
+                                _raw, doc_summary = load_gp_record_for_patient(patient_name)
+                                if doc_summary and "No data found" not in doc_summary:
+                                    gp_response_text = doc_summary
+                                else:
+                                    gp_response_text = "Waiting to receive medical records from GP"
                                 now_utc = datetime.now(timezone.utc).isoformat()
                                 await db.execute(
                                     "UPDATE cases SET gp_response = ?, updated_at = ? WHERE id = ?",
@@ -435,8 +438,11 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                                     snapshot_gp.patient.patient_name_first,
                                     snapshot_gp.patient.patient_name_last,
                                 ])) or "Unknown"
-                                _raw, doc_summary = load_gp_document_for_patient(patient_name)
-                                gp_response_text = doc_summary if doc_summary else "No data found from the GP."
+                                _raw, doc_summary = load_gp_record_for_patient(patient_name)
+                                if doc_summary and "No data found" not in doc_summary:
+                                    gp_response_text = doc_summary
+                                else:
+                                    gp_response_text = "Waiting to receive medical records from GP"
                                 now_utc = datetime.now(timezone.utc).isoformat()
                                 await db.execute(
                                     "UPDATE cases SET gp_response = ?, updated_at = ? WHERE id = ?",

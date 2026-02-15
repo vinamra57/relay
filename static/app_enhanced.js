@@ -384,6 +384,7 @@ function setSourceStatus(sourceId, status) {
         success: 'success',
         querying: 'querying',
         failed: 'failed',
+        warning: 'warning',
     };
     const normalized = statusMap[status] || status;
     
@@ -631,7 +632,11 @@ function showHospitalBanner() {
 }
 
 function handleMedicalDbComplete(reportText) {
-    const noRecords = !reportText || /no matching patient records found/i.test(reportText) || /not found.*connected health systems/i.test(reportText);
+    const noRecords = !reportText
+        || /no matching patient records found/i.test(reportText)
+        || /not found.*connected health systems/i.test(reportText)
+        || /patient not found in fhir/i.test(reportText)
+        || /no matching patient.*connected health systems/i.test(reportText);
     if (noRecords) {
         setSourceStatus('FHIR', 'failed');
         updateSourceResult('FHIR', '');
@@ -670,29 +675,45 @@ function handleGpComplete(gpResponse) {
 
 function handleGpDataStatus(status, message) {
     const statusText = message || "Waiting for GP records...";
-    setSourceStatus('GPData', status || 'waiting');
-    updateSourceResult('GPData', statusText);
+    const noRecords = /waiting to receive medical records from gp/i.test(statusText || "");
+    const sourceStatus = noRecords ? "warning" : (status || "waiting");
+    setSourceStatus("GPData", sourceStatus);
+    updateSourceResult("GPData", noRecords ? "" : statusText);
     document.getElementById("gpDataSection").style.display = "block";
     const statusEl = document.getElementById("gpDataStatus");
     statusEl.textContent = statusText;
-    statusEl.className = `gp-call-status ${status === 'received' ? 'complete' : 'calling'}`;
+    statusEl.className = `gp-call-status ${status === "received" && !noRecords ? "complete" : "calling"}`;
     const sourcesStatus = document.getElementById("sourcesStatus");
     sourcesStatus.textContent = statusText;
     sourcesStatus.classList.add("active");
 }
 
 function handleGpDataReceived(summaryText, fullText) {
-    setSourceStatus('GPData', 'success');
-    updateSourceResult('GPData', 'Records received');
-    document.getElementById("gpDataSection").style.display = "block";
-    const statusEl = document.getElementById("gpDataStatus");
-    statusEl.textContent = "Records received";
-    statusEl.className = "gp-call-status complete";
-    const displayText = summaryText || fullText || "GP records received.";
-    document.getElementById("gpDataTranscript").textContent = displayText;
-    const sourcesStatus = document.getElementById("sourcesStatus");
-    sourcesStatus.textContent = "GP records received";
-    sourcesStatus.classList.add("active");
+    const displayText = summaryText || fullText || "";
+    const noRecords = !displayText || /waiting to receive medical records from gp/i.test(displayText);
+    if (noRecords) {
+        setSourceStatus("GPData", "warning");
+        updateSourceResult("GPData", "");
+        document.getElementById("gpDataSection").style.display = "block";
+        const statusEl = document.getElementById("gpDataStatus");
+        statusEl.textContent = "Waiting to receive medical records from GP.";
+        statusEl.className = "gp-call-status calling";
+        document.getElementById("gpDataTranscript").textContent = displayText || "Waiting to receive medical records from GP.";
+        const sourcesStatus = document.getElementById("sourcesStatus");
+        sourcesStatus.textContent = "Waiting to receive medical records from GP.";
+        sourcesStatus.classList.add("active");
+    } else {
+        setSourceStatus("GPData", "success");
+        updateSourceResult("GPData", "Records received");
+        document.getElementById("gpDataSection").style.display = "block";
+        const statusEl = document.getElementById("gpDataStatus");
+        statusEl.textContent = "Records received";
+        statusEl.className = "gp-call-status complete";
+        document.getElementById("gpDataTranscript").textContent = displayText;
+        const sourcesStatus = document.getElementById("sourcesStatus");
+        sourcesStatus.textContent = "GP records received";
+        sourcesStatus.classList.add("active");
+    }
 }
 
 function parseMedicalDbReport(text) {

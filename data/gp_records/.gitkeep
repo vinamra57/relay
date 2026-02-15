@@ -1,0 +1,1 @@
+# Put GP medical record PDFs here and register them in app/gp_pdf_registry.py (patient_name -> pdf_path).

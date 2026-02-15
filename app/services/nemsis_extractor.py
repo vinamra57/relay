@@ -15,7 +15,7 @@ Rules:
 - Only fill fields you can confidently extract from the transcript.
 - Leave fields as null if the information is not present or unclear.
 - For patient_name_first and patient_name_last, split full names appropriately.
-- For vitals, extract numeric values only.
+- Vitals (systolic_bp, diastolic_bp, heart_rate, respiratory_rate, spo2, blood_glucose, gcs_total, temperature, pain_scale, etc.): only fill when the transcript explicitly states a value (e.g. "BP 120 over 80", "SpO2 98%", "GCS 15"). Do NOT invent, infer, or guess vitals. If no vitals are mentioned, leave all vitals fields null.
 - For procedures and medications, list each one mentioned.
 - For gender, use: "Male", "Female", or "Unknown".
 - Be precise with medical terminology in primary_impression and secondary_impression.
