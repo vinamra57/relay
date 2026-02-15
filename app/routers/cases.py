@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
@@ -20,7 +20,7 @@ async def create_case(body: CaseCreate):
     """Create a new emergency case."""
     db = await get_db()
     case_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     nemsis = NEMSISRecord()
 
     await db.execute(
@@ -151,7 +151,7 @@ async def update_case_status(case_id: str, body: CaseStatusUpdate):
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     await db.execute(
         "UPDATE cases SET status = ?, updated_at = ? WHERE id = ?",
         (body.status, now, case_id),

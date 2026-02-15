@@ -21,16 +21,18 @@ VOICE_DUMMY = os.getenv("VOICE_DUMMY", "false").lower() in ("1", "true", "yes", 
 GP_CALLS_ENABLED = os.getenv("GP_CALLS_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "aria_health.db")
+
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 DATABASE_MAX_CONNECTIONS = int(os.getenv("DATABASE_MAX_CONNECTIONS", "5"))
 SEED_DEMO_CASES = os.getenv("SEED_DEMO_CASES", "true").lower() == "true"
 
-# Modal inference (OpenAI-compatible vLLM endpoint)
-MODAL_ENDPOINT_URL = os.getenv("MODAL_ENDPOINT_URL", "")
-MODAL_MODEL_NAME = os.getenv("MODAL_MODEL_NAME", "Qwen/Qwen3-8B")
-
 # Perplexity Sonar API (GP contact resolution)
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
+
+# Twilio (outbound voice calls)
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "")
 
 # ElevenLabs Conversational AI (voice agent)
 ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID", "")

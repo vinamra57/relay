@@ -6,8 +6,6 @@ import pytest
 
 from app.models.summary import CaseSummary, HospitalSummary
 from app.services.summary import (
-    _empty_case_summary,
-    _empty_hospital_summary,
     _load_case_data,
     generate_summary,
     get_summary_for_hospital,
@@ -85,30 +83,13 @@ class TestLoadCaseData:
         assert data["nemsis"] == {}
 
 
-class TestEmptyFallbacks:
-    """Without LLM keys, summaries return empty fallbacks."""
-
-    def test_empty_case_summary(self):
-        s = _empty_case_summary()
-        assert isinstance(s, CaseSummary)
-        assert s.urgency == "moderate"
-        assert s.one_liner == "No summary available."
-
-    def test_empty_hospital_summary(self):
-        s = _empty_hospital_summary()
-        assert isinstance(s, HospitalSummary)
-        assert s.priority_level == "moderate"
-        assert s.patient_demographics == ""
-
-
 class TestGenerateSummary:
     async def test_returns_case_summary(self, db):
-        """Without LLM, returns empty fallback summary."""
         await _create_case_with_data(db, "gen-1", STEMI_NEMSIS)
         result = await generate_summary("gen-1")
         assert isinstance(result, CaseSummary)
-        # No LLM in test mode → empty fallback
-        assert result.urgency == "moderate"
+        assert result.urgency == "critical"  # STEMI -> critical
+        assert "John Smith" in result.one_liner
 
     async def test_empty_nemsis_returns_moderate(self, db):
         await _create_case_with_data(db, "gen-empty", {})
@@ -123,18 +104,26 @@ class TestGenerateSummary:
 
 class TestGetSummaryForHospital:
     async def test_returns_hospital_summary(self, db):
-        """Without LLM, returns empty fallback hospital summary."""
         await _create_case_with_data(db, "hosp-1", STEMI_NEMSIS)
         result = await get_summary_for_hospital("hosp-1")
         assert isinstance(result, HospitalSummary)
-        # No LLM in test mode → empty fallback
-        assert result.priority_level == "moderate"
+        assert result.priority_level == "critical"
+        assert "John Smith" in result.patient_demographics
+        assert "STEMI" in result.clinical_impression
+        assert "catheterization" in result.recommended_preparations.lower()
+
+    async def test_hospital_summary_vitals(self, db):
+        await _create_case_with_data(db, "hosp-vitals", STEMI_NEMSIS)
+        result = await get_summary_for_hospital("hosp-vitals")
+        assert "BP 160/95" in result.vitals_summary
+        assert "HR 110" in result.vitals_summary
 
     async def test_hospital_summary_empty_case(self, db):
         await _create_case_with_data(db, "hosp-empty", {})
         result = await get_summary_for_hospital("hosp-empty")
         assert isinstance(result, HospitalSummary)
-        assert result.priority_level == "moderate"
+        assert result.vitals_summary == "No vitals recorded"
+        assert "Standard ED" in result.recommended_preparations
 
     async def test_missing_case_raises(self, db):
         with pytest.raises(ValueError):

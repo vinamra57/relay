@@ -9,7 +9,7 @@ Flow:
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from app.config import HOSPITAL_CALLBACK_NUMBER
 from app.database import get_db
@@ -121,7 +121,7 @@ async def call_gp(
                 (
                     outcome,
                     call_result.get("transcript", ""),
-                    datetime.now(UTC).isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     case_id,
                 ),
             )
@@ -171,7 +171,7 @@ async def _log_audit(
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 case_id or "",
-                datetime.now(UTC).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 phone_number,
                 patient_name,
                 patient_dob,

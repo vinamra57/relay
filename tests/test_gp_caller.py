@@ -1,4 +1,4 @@
-"""Tests for GP caller orchestrator — integration tests without API keys."""
+"""Tests for GP caller orchestrator — dummy mode integration."""
 
 from app.services.gp_caller import call_gp
 
@@ -29,11 +29,11 @@ async def test_call_gp_no_name_no_phone():
     assert "No GP contact available" in result
 
 
-# --- GP Name Only (no Perplexity key in tests) ---
+# --- Dummy Mode with GP Name ---
 
 
-async def test_call_gp_with_name_no_api_key():
-    """Without PERPLEXITY_API_KEY, GP lookup fails gracefully."""
+async def test_call_gp_with_name_dummy_mode():
+    """call_gp resolves phone via lookup in dummy mode and places call."""
     result = await call_gp(
         patient_name="John Smith",
         patient_age="45",
@@ -42,14 +42,28 @@ async def test_call_gp_with_name_no_api_key():
         gp_name="Dr. Wilson",
         gp_practice_name="Greenfield Medical Center",
     )
-    assert "Could not resolve" in result
+    assert "[DUMMY]" in result
+    assert "John Smith" in result
 
 
-# --- Confirmed GP Phone (no ElevenLabs key in tests) ---
+async def test_call_gp_with_name_contains_phone():
+    """Dummy mode result mentions the resolved phone number."""
+    result = await call_gp(
+        patient_name="Jane Doe",
+        patient_age="32",
+        patient_gender="Female",
+        patient_address="456 Oak Ave",
+        gp_name="Dr. Smith",
+    )
+    assert "[DUMMY]" in result
+    assert "+1-555-0123" in result
+
+
+# --- Dummy Mode with Confirmed GP Phone ---
 
 
 async def test_call_gp_with_confirmed_phone():
-    """With confirmed phone but no ElevenLabs key, call fails gracefully."""
+    """call_gp uses confirmed GP phone directly, skips lookup."""
     result = await call_gp(
         patient_name="Bob Williams",
         patient_age="60",
@@ -57,12 +71,12 @@ async def test_call_gp_with_confirmed_phone():
         patient_address="789 Pine St",
         gp_phone="+1-555-9999",
     )
-    # Without ElevenLabs key, place_gp_call returns error
-    assert "failed" in result.lower() or "error" in result.lower()
+    assert "[DUMMY]" in result
+    assert "+1-555-9999" in result
 
 
 async def test_call_gp_with_both_name_and_phone():
-    """When both GP name and phone provided, phone takes precedence (skips lookup)."""
+    """When both GP name and phone provided, phone takes precedence."""
     result = await call_gp(
         patient_name="Test Patient",
         patient_age="40",
@@ -71,5 +85,36 @@ async def test_call_gp_with_both_name_and_phone():
         gp_name="Dr. Test",
         gp_phone="+1-555-8888",
     )
-    # Skips lookup, goes straight to call (which fails without ElevenLabs key)
-    assert "Could not resolve" not in result
+    assert "+1-555-8888" in result
+
+
+# --- With DOB ---
+
+
+async def test_call_gp_with_dob():
+    """call_gp passes DOB through to voice agent."""
+    result = await call_gp(
+        patient_name="John Smith",
+        patient_age="45",
+        patient_gender="Male",
+        patient_address="742 Evergreen Terrace",
+        gp_name="Dr. Wilson",
+        patient_dob="1980-01-15",
+    )
+    assert "[DUMMY]" in result
+
+
+# --- With Case ID ---
+
+
+async def test_call_gp_with_case_id():
+    """call_gp logs audit and updates case when case_id provided."""
+    result = await call_gp(
+        patient_name="John Smith",
+        patient_age="45",
+        patient_gender="Male",
+        patient_address="742 Evergreen Terrace",
+        gp_name="Dr. Wilson",
+        case_id="test-case-gp-001",
+    )
+    assert "[DUMMY]" in result
