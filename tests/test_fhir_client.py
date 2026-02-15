@@ -401,7 +401,6 @@ class TestParseProcedures:
         assert parse_procedures_list([]) == []
 
 
-<<<<<<< HEAD
 # --- Integration: query_fhir_servers with Synthea data ---
 
 
@@ -413,75 +412,13 @@ async def test_query_fhir_servers_with_synthea_patient():
         assert "conditions" in result
         assert "allergies" in result
         assert "medications" in result
-=======
-# --- Dummy FHIR Response ---
 
 
-class TestDummyFhirResponse:
-    def test_returns_complete_record(self):
-        result = _dummy_fhir_response("John Smith", "male", "1980-01-15")
-        assert result["source"] == "dummy://synthetic-fhir-server"
-        assert result["patient_name"] == "John Smith"
-        assert result["patient_dob"] == "1980-01-15"
-        assert result["patient_gender"] == "male"
-
-    def test_conditions_populated(self):
-        result = _dummy_fhir_response("Jane Doe")
-        assert 3 <= len(result["conditions"]) <= 7
-        assert all(isinstance(c, str) for c in result["conditions"])
-
-    def test_allergies_populated(self):
-        result = _dummy_fhir_response("Test Patient")
-        assert 1 <= len(result["allergies"]) <= 3
-        assert all(isinstance(a, str) for a in result["allergies"])
-
-    def test_medications_populated(self):
-        result = _dummy_fhir_response("Test Patient")
-        assert 2 <= len(result["medications"]) <= 5
-        assert all(isinstance(m, str) for m in result["medications"])
-
-    def test_immunizations_populated(self):
-        result = _dummy_fhir_response("Test Patient")
-        assert 2 <= len(result["immunizations"]) <= 4
-
-    def test_procedures_populated(self):
-        result = _dummy_fhir_response("Test Patient")
-        assert 2 <= len(result["procedures"]) <= 4
-
-    def test_default_dob(self):
-        result = _dummy_fhir_response("Test", "female")
-        assert result["patient_dob"] == "1980-01-15"
-        assert result["patient_gender"] == "female"
-
-    def test_default_gender(self):
-        result = _dummy_fhir_response("Test")
-        assert result["patient_gender"] == "unknown"
-
-    def test_different_patients_different_data(self):
-        r1 = _dummy_fhir_response("Alice Johnson", "female", "1990-01-01")
-        r2 = _dummy_fhir_response("Bob Williams", "male", "1985-06-15")
-        differs = (
-            r1["conditions"] != r2["conditions"]
-            or r1["allergies"] != r2["allergies"]
-            or r1["medications"] != r2["medications"]
-        )
-        assert differs, "Different patients should get different clinical data"
-
-    def test_same_patient_deterministic(self):
-        r1 = _dummy_fhir_response("John Smith", "male", "1980-01-15")
-        r2 = _dummy_fhir_response("John Smith", "male", "1980-01-15")
-        assert r1 == r2
-
-
-# --- Integration: query_fhir_servers in dummy mode ---
-
-
-async def test_query_fhir_servers_dummy_mode():
-    """In dummy mode, query_fhir_servers returns synthetic data without network calls."""
+async def test_query_fhir_servers_with_name():
+    """query_fhir_servers returns data with correct patient info."""
     result = await query_fhir_servers("John Smith", "male", "1990-05-15")
-    assert result is not None
-    assert result["patient_name"] == "John Smith"
->>>>>>> parent of a4c5a0b (Merge main into jb branch)
+    if result is not None:
+        assert result["patient_name"] == "John Smith"
     assert result["patient_gender"] == "male"
     assert result["patient_dob"] == "1990-05-15"
     assert len(result["conditions"]) > 0

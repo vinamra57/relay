@@ -11,7 +11,7 @@ from app.models.nemsis import (
 from app.services.core_info_checker import (
     get_full_name,
     is_core_info_complete,
-    trigger_downstream,
+    trigger_medical_db,
 )
 from app.services.gp_caller import call_gp
 from app.services.medical_db import query_records
@@ -378,8 +378,8 @@ class TestGetFullName:
         assert get_full_name(r) == "Unknown"
 
 
-async def test_trigger_downstream():
-    """Test parallel downstream calls: medical DB returns report; GP may fail without API key."""
+async def test_trigger_medical_db():
+    """Test medical DB lookup returns report."""
     r = NEMSISRecord(
         patient=NEMSISPatientInfo(
             patient_name_first="John",
@@ -387,18 +387,15 @@ async def test_trigger_downstream():
             patient_age="45",
             patient_gender="Male",
             patient_address="123 Main St",
-            gp_name="Dr. Wilson",
         ),
     )
-    gp_result, db_result = await trigger_downstream(r)
-    # GP: either dummy transcript or "Could not resolve" when PERPLEXITY_API_KEY unset
-    assert "[DUMMY]" in gp_result or "Could not resolve" in gp_result or "John Smith" in gp_result
+    db_result = await trigger_medical_db(r)
     assert "John Smith" in db_result
     assert "MEDICAL HISTORY REPORT" in db_result or "patient" in db_result.lower()
 
 
-async def test_trigger_downstream_with_dob():
-    """Test downstream passes DOB to medical DB when available."""
+async def test_trigger_medical_db_with_dob():
+    """Test medical DB passes DOB when available."""
     r = NEMSISRecord(
         patient=NEMSISPatientInfo(
             patient_name_first="Jane",
@@ -407,29 +404,11 @@ async def test_trigger_downstream_with_dob():
             patient_gender="Female",
             patient_address="456 Oak Ave",
             patient_date_of_birth="1994-05-20",
-            gp_name="Dr. Smith",
         ),
     )
-    gp_result, db_result = await trigger_downstream(r)
-    # GP may fail without API key
+    db_result = await trigger_medical_db(r)
     assert "Jane Doe" in db_result
     assert "1994-05-20" in db_result or "DOB" in db_result or "patient" in db_result.lower()
-
-
-async def test_trigger_downstream_no_gp():
-    """Without GP contact, GP call returns early but medical DB still works."""
-    r = NEMSISRecord(
-        patient=NEMSISPatientInfo(
-            patient_name_first="Bob",
-            patient_name_last="Jones",
-            patient_age="50",
-            patient_gender="Male",
-            patient_address="789 Pine St",
-        ),
-    )
-    gp_result, db_result = await trigger_downstream(r)
-    assert "No GP contact available" in gp_result
-    assert "MEDICAL HISTORY REPORT" in db_result
 
 
 # --- GP Caller ---

@@ -29,6 +29,7 @@ async def call_gp(
     gp_practice_name: str | None = None,
     patient_dob: str | None = None,
     case_id: str | None = None,
+    chief_complaint: str | None = None,
 ) -> str:
     """Orchestrate GP contact: resolve number, place call, log audit.
 
@@ -93,9 +94,13 @@ async def call_gp(
     call_result = await place_gp_call(
         phone_number=phone_number,
         patient_name=patient_name,
+        patient_age=patient_age,
+        patient_gender=patient_gender,
+        patient_address=patient_address,
         patient_dob=patient_dob,
         hospital_callback=HOSPITAL_CALLBACK_NUMBER,
         case_id=case_id,
+        chief_complaint=chief_complaint,
     )
 
     # 4. Log audit

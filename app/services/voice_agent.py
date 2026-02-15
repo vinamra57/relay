@@ -15,6 +15,7 @@ from app.config import (
     ELEVENLABS_PHONE_NUMBER_ID,
     GP_CALLS_ENABLED,
     HOSPITAL_CALLBACK_NUMBER,
+    RECORDS_EMAIL,
     VOICE_DUMMY,
 )
 
@@ -27,18 +28,16 @@ ELEVENLABS_TIMEOUT = 30.0
 async def place_gp_call(
     phone_number: str,
     patient_name: str,
-    patient_dob: str | None,
+    patient_age: str | None = None,
+    patient_gender: str | None = None,
+    patient_address: str | None = None,
+    patient_dob: str | None = None,
     hospital_callback: str | None = None,
     case_id: str | None = None,
+    chief_complaint: str | None = None,
+    records_email: str | None = None,
 ) -> dict:
     """Place an outbound call to a GP practice via ElevenLabs + Twilio.
-
-    Args:
-        phone_number: GP practice phone number to call (E.164 or standard format)
-        patient_name: Patient name for the call script
-        patient_dob: Patient date of birth for identification
-        hospital_callback: Hospital number for voicemail callback
-        case_id: Case ID for reference in the call
 
     Returns:
         Dict with keys: call_sid, conversation_id, status
@@ -72,7 +71,12 @@ async def place_gp_call(
                 "error": "ELEVENLABS_PHONE_NUMBER_ID not configured"}
 
     callback = hospital_callback or HOSPITAL_CALLBACK_NUMBER
+    situation = chief_complaint or "a medical emergency"
+    email = records_email or RECORDS_EMAIL
 
+    # Dynamic variables fill {{placeholders}} in the ElevenLabs dashboard prompt.
+    # The dashboard prompt/first_message are managed via the ElevenLabs API
+    # (see agent_id in config). No need to duplicate the prompt here.
     payload = {
         "agent_id": ELEVENLABS_AGENT_ID,
         "agent_phone_number_id": ELEVENLABS_PHONE_NUMBER_ID,
@@ -80,10 +84,15 @@ async def place_gp_call(
         "conversation_initiation_client_data": {
             "dynamic_variables": {
                 "patient_name": patient_name,
+                "patient_age": patient_age or "unknown",
+                "patient_gender": patient_gender or "unknown",
+                "patient_address": patient_address or "unknown",
                 "patient_dob": patient_dob or "unknown",
+                "chief_complaint": situation,
                 "hospital_callback": callback,
+                "records_email": email,
                 "case_id": case_id or "unknown",
-            }
+            },
         },
     }
 
