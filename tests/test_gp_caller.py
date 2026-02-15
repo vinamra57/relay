@@ -32,8 +32,9 @@ async def test_call_gp_no_name_no_phone():
 # --- GP Name Only (no Perplexity key in tests) ---
 
 
-async def test_call_gp_with_name_no_api_key():
+async def test_call_gp_with_name_no_api_key(monkeypatch):
     """Without PERPLEXITY_API_KEY, GP lookup fails gracefully."""
+    monkeypatch.setattr("app.services.gp_lookup.PERPLEXITY_API_KEY", "")
     result = await call_gp(
         patient_name="John Smith",
         patient_age="45",

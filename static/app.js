@@ -156,11 +156,11 @@ function handleServerMessage(msg) {
         case "nemsis_update":
             updateNEMSIS(msg.nemsis);
             break;
-        case "core_info_complete":
-            onCoreInfoComplete();
+        case "medical_db_result":
+            showMedDbResult(msg.result);
             break;
-        case "downstream_complete":
-            showDownstream(msg.gp_response, msg.medical_db_response);
+        case "gp_call_update":
+            showGpCallUpdate(msg.status);
             break;
         case "error":
             console.error("Server error:", msg.message);
@@ -283,14 +283,14 @@ function updateCoreDots(patient) {
     }
 }
 
-function onCoreInfoComplete() {
-    setStatus("active", "Core Info Complete");
+function showMedDbResult(result) {
+    document.getElementById("downstreamSection").style.display = "block";
+    document.getElementById("medDbResponse").textContent = result || "No response";
 }
 
-function showDownstream(gp, medDb) {
+function showGpCallUpdate(status) {
     document.getElementById("downstreamSection").style.display = "block";
-    document.getElementById("gpResponse").textContent = gp || "No response";
-    document.getElementById("medDbResponse").textContent = medDb || "No response";
+    document.getElementById("gpResponse").textContent = status || "Call initiated";
 }
 
 function setStatus(type, text) {

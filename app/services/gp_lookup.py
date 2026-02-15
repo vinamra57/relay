@@ -29,7 +29,7 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _validate_phone(phone: str) -> str | None:
+def _validate_phone(phone: str | None) -> str | None:
     """Validate and normalize a phone number string.
 
     Returns the cleaned phone string if it contains enough digits, else None.

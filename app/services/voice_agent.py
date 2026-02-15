@@ -14,6 +14,7 @@ from app.config import (
     ELEVENLABS_API_KEY,
     ELEVENLABS_PHONE_NUMBER_ID,
     HOSPITAL_CALLBACK_NUMBER,
+    RECORDS_EMAIL,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ async def place_gp_call(
     patient_dob: str | None,
     hospital_callback: str | None = None,
     case_id: str | None = None,
+    chief_complaint: str | None = None,
+    records_email: str | None = None,
 ) -> dict:
     """Place an outbound call to a GP practice via ElevenLabs + Twilio.
 
@@ -37,6 +40,8 @@ async def place_gp_call(
         patient_dob: Patient date of birth for identification
         hospital_callback: Hospital number for voicemail callback
         case_id: Case ID for reference in the call
+        chief_complaint: Brief description of what happened to the patient
+        records_email: Email address where GP should send medical records
 
     Returns:
         Dict with keys: call_sid, conversation_id, status
@@ -57,6 +62,30 @@ async def place_gp_call(
                 "error": "ELEVENLABS_PHONE_NUMBER_ID not configured"}
 
     callback = hospital_callback or HOSPITAL_CALLBACK_NUMBER
+    situation = chief_complaint or "a medical emergency"
+    email = records_email or RECORDS_EMAIL
+
+    prompt = (
+        f"You are a hospital coordinator calling a GP practice on behalf of emergency services. "
+        f"Be professional, calm, and concise.\n\n"
+        f"Your patient {patient_name} (date of birth: {patient_dob or 'unknown'}) is currently "
+        f"being transported by ambulance due to {situation}.\n\n"
+        f"Your goals:\n"
+        f"1. Introduce yourself as calling from the emergency coordination team.\n"
+        f"2. Tell them their patient {patient_name} is in an ambulance due to {situation}.\n"
+        f"3. Ask them to send the patient's medical records to {email}.\n"
+        f"4. Provide the callback number {callback} for any follow-up.\n"
+        f"5. Thank them and end the call.\n\n"
+        f"If you reach voicemail, leave a clear message with the patient name, situation, "
+        f"the email {email} for records, and the callback number {callback}.\n"
+        f"Keep it short — this is urgent."
+    )
+
+    first_message = (
+        f"Hello, this is the emergency coordination team. I'm calling about your patient "
+        f"{patient_name}, who is currently being transported by ambulance due to {situation}. "
+        f"We'd like to request their medical records — could you please send them to {email}?"
+    )
 
     payload = {
         "agent_id": ELEVENLABS_AGENT_ID,
@@ -68,7 +97,13 @@ async def place_gp_call(
                 "patient_dob": patient_dob or "unknown",
                 "hospital_callback": callback,
                 "case_id": case_id or "unknown",
-            }
+            },
+            "conversation_config_override": {
+                "agent": {
+                    "prompt": {"prompt": prompt},
+                    "first_message": first_message,
+                },
+            },
         },
     }
 

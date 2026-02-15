@@ -8,7 +8,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.config import ANTHROPIC_API_KEY
 from app.database import get_db
 from app.models.nemsis import NEMSISRecord
-from app.services.core_info_checker import is_core_info_complete
+from app.services.core_info_checker import (
+    is_core_info_complete,
+    is_gp_contact_available,
+    trigger_gp_call,
+    trigger_medical_db,
+)
 from app.services.event_bus import event_bus
 from app.services.nemsis_extractor import extract_nemsis
 from app.services.transcription import TranscriptionService
@@ -48,6 +53,9 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     extraction_task: asyncio.Task | None = None
     stop_extraction = asyncio.Event()
     extract_now = asyncio.Event()  # Signal to extract immediately
+    background_tasks: set[asyncio.Task] = set()
+    medical_db_triggered = False
+    gp_call_triggered = False
 
     async def _safe_send(data: dict) -> None:
         """Send JSON to websocket, logging on failure."""
@@ -61,7 +69,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
         nonlocal current_partial
         current_partial = text
         await _safe_send({"type": "transcript_partial", "text": text})
-        
+
         # Check if we have enough new words to trigger extraction
         full_text = (accumulated_transcript + " " + text).strip() if accumulated_transcript else text
         current_word_count = len(full_text.split())
@@ -104,6 +112,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     async def _extraction_loop():
         """Background task that extracts NEMSIS data based on word count or max interval."""
         nonlocal current_nemsis, core_info_sent, last_extracted_word_count
+        nonlocal medical_db_triggered, gp_call_triggered
 
         while not stop_extraction.is_set():
             # Wait for either: extract_now signal, max interval, or stop signal
@@ -128,7 +137,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
 
             if stop_extraction.is_set():
                 break
-            
+
             # Reset extract_now for next trigger
             extract_now.clear()
 
@@ -149,9 +158,9 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
             async with extraction_lock:
                 try:
                     new_words = current_word_count - last_extracted_word_count
-                    logger.info("Running NEMSIS extraction (%d new words, %d total)", 
+                    logger.info("Running NEMSIS extraction (%d new words, %d total)",
                                new_words, current_word_count)
-                    
+
                     current_nemsis = await extract_nemsis(
                         full_text, current_nemsis
                     )
@@ -206,8 +215,48 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                         logger.info("Core info complete for %s - notifying client", patient_name)
                         await _safe_send({"type": "core_info_complete"})
                         await event_bus.publish(case_id, {"type": "core_info_complete"})
+
+                    # Trigger downstream actions once conditions are met
+                    if not medical_db_triggered and core_complete:
+                        medical_db_triggered = True
+                        logger.info("Core info complete for case %s — triggering medical DB lookup", case_id)
+                        t = asyncio.create_task(_run_medical_db())
+                        background_tasks.add(t)
+                        t.add_done_callback(background_tasks.discard)
+
+                    if not gp_call_triggered and is_gp_contact_available(current_nemsis):
+                        gp_call_triggered = True
+                        logger.info("GP contact available for case %s — triggering GP call", case_id)
+                        t = asyncio.create_task(_run_gp_call())
+                        background_tasks.add(t)
+                        t.add_done_callback(background_tasks.discard)
+
                 except Exception as e:
                     logger.error("NEMSIS extraction error: %s", e)
+
+    async def _run_medical_db():
+        try:
+            result = await trigger_medical_db(current_nemsis)
+            logger.info("Medical DB result for case %s: %s", case_id, result[:200])
+            now = datetime.now(UTC).isoformat()
+            await db.execute(
+                "UPDATE cases SET medical_db_response = ?, updated_at = ? WHERE id = ?",
+                (result, now, case_id),
+            )
+            await db.commit()
+            payload = {"type": "medical_db_result", "result": result}
+            await _safe_send(payload)
+            await event_bus.publish(case_id, payload)
+        except Exception as e:
+            logger.error("Medical DB lookup failed for case %s: %s", case_id, e)
+
+    async def _run_gp_call():
+        try:
+            result = await trigger_gp_call(current_nemsis, case_id)
+            logger.info("GP call result for case %s: %s", case_id, result[:200])
+            await _safe_send({"type": "gp_call_update", "status": result})
+        except Exception as e:
+            logger.error("GP call failed for case %s: %s", case_id, e)
 
     # Load existing case data
     row = await db.execute(
@@ -255,7 +304,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                 pass
 
         await stt.stop()
-        
+
         # Run one final extraction to capture any remaining text
         if ANTHROPIC_API_KEY and len(accumulated_transcript.split()) > last_extracted_word_count:
             logger.info("Running final NEMSIS extraction before closing")
@@ -266,7 +315,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                     )
                     nemsis_json = current_nemsis.model_dump_json()
                     now = datetime.now(UTC).isoformat()
-                    
+
                     patient = current_nemsis.patient
                     patient_name = (
                         " ".join(
@@ -278,7 +327,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                         or None
                     )
                     core_complete = is_core_info_complete(current_nemsis)
-                    
+
                     await db.execute(
                         """UPDATE cases SET
                             nemsis_data = ?, patient_name = ?, patient_address = ?,
@@ -297,7 +346,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                     )
             except Exception as e:
                 logger.error("Final NEMSIS extraction error: %s", e)
-        
+
         # Mark case as completed if it was active
         now = datetime.now(UTC).isoformat()
         await db.execute(

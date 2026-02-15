@@ -2,7 +2,6 @@
 
 from app.services.voice_agent import place_gp_call
 
-
 # --- Place GP Call (no ElevenLabs key in tests) ---
 
 

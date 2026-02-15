@@ -48,9 +48,11 @@ function handleEvent(msg) {
     if (msg.type === "nemsis_update") {
         cases[caseId].nemsis = msg.nemsis || {};
         cases[caseId].patient_name = msg.patient_name || cases[caseId].patient_name;
-    } else if (msg.type === "downstream_complete") {
-        cases[caseId].gp_response = msg.gp_response;
-        cases[caseId].medical_db_response = msg.medical_db_response;
+    } else if (msg.type === "medical_db_result") {
+        cases[caseId].medical_db_response = msg.result;
+    } else if (msg.type === "gp_call_transcript") {
+        cases[caseId].gp_response = msg.transcript;
+        cases[caseId].gp_call_status = msg.call_status;
     }
 
     renderCaseList();

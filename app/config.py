@@ -24,3 +24,6 @@ ELEVENLABS_PHONE_NUMBER_ID = os.getenv("ELEVENLABS_PHONE_NUMBER_ID", "")
 
 # Hospital callback number for GP voicemail
 HOSPITAL_CALLBACK_NUMBER = os.getenv("HOSPITAL_CALLBACK_NUMBER", "+1-555-0100")
+
+# Email address for GPs to send medical records to
+RECORDS_EMAIL = os.getenv("RECORDS_EMAIL", "records@ariahealth.com")

@@ -25,7 +25,7 @@ class TestValidatePhone:
         assert _validate_phone("") is None
 
     def test_none(self):
-        assert _validate_phone(None) is None
+        assert _validate_phone(None) is None  # type: ignore[arg-type]
 
     def test_no_digits(self):
         assert _validate_phone("not a number") is None
@@ -34,8 +34,9 @@ class TestValidatePhone:
 # --- Lookup without API key ---
 
 
-async def test_lookup_no_api_key_returns_none():
+async def test_lookup_no_api_key_returns_none(monkeypatch):
     """Without PERPLEXITY_API_KEY, lookup returns None."""
+    monkeypatch.setattr("app.services.gp_lookup.PERPLEXITY_API_KEY", "")
     result = await lookup_gp_phone(
         gp_name="Dr. Wilson",
         location="Springfield",

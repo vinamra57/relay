@@ -60,6 +60,11 @@ async def trigger_gp_call(record: NEMSISRecord, case_id: str) -> str:
 
     logger.info("GP contact available for %s. Triggering GP call.", name)
 
+    chief_complaint = (
+        record.situation.chief_complaint
+        or record.situation.primary_impression
+    )
+
     return await call_gp(
         patient_name=name,
         patient_age=age,
@@ -70,6 +75,7 @@ async def trigger_gp_call(record: NEMSISRecord, case_id: str) -> str:
         gp_practice_name=record.patient.gp_practice_name,
         patient_dob=dob,
         case_id=case_id,
+        chief_complaint=chief_complaint,
     )
 
 
