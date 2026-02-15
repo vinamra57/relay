@@ -152,7 +152,11 @@ async def hospital_dashboard_ws(websocket: WebSocket):
 
     try:
         while True:
-            event = await queue.get()
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=10.0)
+            except asyncio.TimeoutError:
+                event = {"type": "ping"}
+
             try:
                 await websocket.send_json(event)
             except Exception:
