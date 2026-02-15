@@ -8,12 +8,18 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.config import ANTHROPIC_API_KEY
 from app.database import get_db
 from app.models.nemsis import NEMSISRecord
+from app.services.core_info_checker import is_core_info_complete
 from app.services.event_bus import event_bus
 from app.services.nemsis_extractor import extract_nemsis
 from app.services.transcription import TranscriptionService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Word count threshold - trigger extraction after this many new words
+WORD_COUNT_THRESHOLD = 10
+# Max interval between extractions (fallback if not enough words)
+MAX_EXTRACTION_INTERVAL = 3
 
 
 @router.websocket("/ws/stream/{case_id}")
@@ -34,9 +40,14 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
 
     # State for this session
     accumulated_transcript = ""
+    current_partial = ""  # Current partial transcript (not yet committed)
     current_nemsis = NEMSISRecord()
     extraction_lock = asyncio.Lock()
-    background_tasks: set[asyncio.Task] = set()
+    core_info_sent = False  # Track if we've notified client about core info completion
+    last_extracted_word_count = 0  # Track word count at last extraction
+    extraction_task: asyncio.Task | None = None
+    stop_extraction = asyncio.Event()
+    extract_now = asyncio.Event()  # Signal to extract immediately
 
     async def _safe_send(data: dict) -> None:
         """Send JSON to websocket, logging on failure."""
@@ -47,13 +58,22 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
 
     async def on_partial(text: str):
         """Handle partial transcript from ElevenLabs."""
+        nonlocal current_partial
+        current_partial = text
         await _safe_send({"type": "transcript_partial", "text": text})
+        
+        # Check if we have enough new words to trigger extraction
+        full_text = (accumulated_transcript + " " + text).strip() if accumulated_transcript else text
+        current_word_count = len(full_text.split())
+        if current_word_count - last_extracted_word_count >= WORD_COUNT_THRESHOLD:
+            extract_now.set()  # Signal extraction loop to run now
 
     async def on_committed(text: str):
         """Handle committed transcript from ElevenLabs."""
-        nonlocal accumulated_transcript
+        nonlocal accumulated_transcript, current_partial
 
         now = datetime.now(timezone.utc).isoformat()
+        current_partial = ""  # Reset partial since it's now committed
 
         # Save raw segment to database
         await db.execute(
@@ -70,7 +90,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
         )
         await db.commit()
 
-        # Send committed transcript to client
+        # Send committed transcript to client immediately (for UI display)
         await _safe_send(
             {
                 "type": "transcript_committed",
@@ -78,62 +98,116 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                 "full_transcript": accumulated_transcript,
             }
         )
+        # Trigger extraction on commit as well
+        extract_now.set()
 
-        # Run NEMSIS extraction only when Claude (Anthropic) key is set (no API key = skip entirely, no errors)
-        if ANTHROPIC_API_KEY:
-            task = asyncio.create_task(_run_extraction(text, now))
-            background_tasks.add(task)
-            task.add_done_callback(background_tasks.discard)
+    async def _extraction_loop():
+        """Background task that extracts NEMSIS data based on word count or max interval."""
+        nonlocal current_nemsis, core_info_sent, last_extracted_word_count
 
-    async def _run_extraction(segment_text: str, timestamp: str):
-        nonlocal current_nemsis
-
-        async with extraction_lock:
+        while not stop_extraction.is_set():
+            # Wait for either: extract_now signal, max interval, or stop signal
             try:
-                current_nemsis = await extract_nemsis(
-                    accumulated_transcript, current_nemsis
+                done, pending = await asyncio.wait(
+                    [
+                        asyncio.create_task(extract_now.wait()),
+                        asyncio.create_task(stop_extraction.wait()),
+                    ],
+                    timeout=MAX_EXTRACTION_INTERVAL,
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
+                # Cancel pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+            except asyncio.TimeoutError:
+                pass
 
-                nemsis_json = current_nemsis.model_dump_json()
-                now = datetime.now(timezone.utc).isoformat()
+            if stop_extraction.is_set():
+                break
+            
+            # Reset extract_now for next trigger
+            extract_now.clear()
 
-                patient = current_nemsis.patient
-                patient_name = (
-                    " ".join(
-                        filter(
-                            None,
-                            [patient.patient_name_first, patient.patient_name_last],
-                        )
+            # Get full text including current partial
+            full_text = accumulated_transcript
+            if current_partial:
+                full_text = (full_text + " " + current_partial).strip() if full_text else current_partial
+
+            # Only extract if there's enough new words
+            current_word_count = len(full_text.split()) if full_text else 0
+            if current_word_count <= last_extracted_word_count:
+                continue
+
+            # Skip if no API key
+            if not ANTHROPIC_API_KEY:
+                continue
+
+            async with extraction_lock:
+                try:
+                    new_words = current_word_count - last_extracted_word_count
+                    logger.info("Running NEMSIS extraction (%d new words, %d total)", 
+                               new_words, current_word_count)
+                    
+                    current_nemsis = await extract_nemsis(
+                        full_text, current_nemsis
                     )
-                    or None
-                )
+                    last_extracted_word_count = current_word_count
 
-                await db.execute(
-                    """UPDATE cases SET
-                        nemsis_data = ?, patient_name = ?, patient_address = ?,
-                        patient_age = ?, patient_gender = ?, updated_at = ?
-                    WHERE id = ?""",
-                    (
-                        nemsis_json,
-                        patient_name,
-                        patient.patient_address,
-                        patient.patient_age,
-                        patient.patient_gender,
-                        now,
-                        case_id,
-                    ),
-                )
-                await db.commit()
+                    nemsis_json = current_nemsis.model_dump_json()
+                    now = datetime.now(timezone.utc).isoformat()
 
-                nemsis_dict = current_nemsis.model_dump()
-                await _safe_send({"type": "nemsis_update", "nemsis": nemsis_dict})
-                await event_bus.publish(case_id, {
-                    "type": "nemsis_update",
-                    "nemsis": nemsis_dict,
-                    "patient_name": patient_name,
-                })
-            except Exception as e:
-                logger.error("NEMSIS extraction error: %s", e)
+                    patient = current_nemsis.patient
+                    patient_name = (
+                        " ".join(
+                            filter(
+                                None,
+                                [patient.patient_name_first, patient.patient_name_last],
+                            )
+                        )
+                        or None
+                    )
+
+                    # Check if core info is now complete
+                    core_complete = is_core_info_complete(current_nemsis)
+
+                    await db.execute(
+                        """UPDATE cases SET
+                            nemsis_data = ?, patient_name = ?, patient_address = ?,
+                            patient_age = ?, patient_gender = ?, core_info_complete = ?, updated_at = ?
+                        WHERE id = ?""",
+                        (
+                            nemsis_json,
+                            patient_name,
+                            patient.patient_address,
+                            patient.patient_age,
+                            patient.patient_gender,
+                            1 if core_complete else 0,
+                            now,
+                            case_id,
+                        ),
+                    )
+                    await db.commit()
+
+                    nemsis_dict = current_nemsis.model_dump()
+                    await _safe_send({"type": "nemsis_update", "nemsis": nemsis_dict})
+                    await event_bus.publish(case_id, {
+                        "type": "nemsis_update",
+                        "nemsis": nemsis_dict,
+                        "patient_name": patient_name,
+                    })
+
+                    # Send core_info_complete message once when all 4 fields are present
+                    if core_complete and not core_info_sent:
+                        core_info_sent = True
+                        logger.info("Core info complete for %s - notifying client", patient_name)
+                        await _safe_send({"type": "core_info_complete"})
+                        await event_bus.publish(case_id, {"type": "core_info_complete"})
+                except Exception as e:
+                    logger.error("NEMSIS extraction error: %s", e)
 
     # Load existing case data
     row = await db.execute(
@@ -143,6 +217,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     existing = await row.fetchone()
     if existing:
         accumulated_transcript = existing["full_transcript"] or ""
+        last_extracted_word_count = len(accumulated_transcript.split()) if accumulated_transcript else 0
         try:
             current_nemsis = NEMSISRecord.model_validate_json(existing["nemsis_data"])
         except Exception:
@@ -152,6 +227,9 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     # Start transcription service
     stt = TranscriptionService(on_partial=on_partial, on_committed=on_committed)
     await stt.start()
+
+    # Start the interval-based extraction loop
+    extraction_task = asyncio.create_task(_extraction_loop())
 
     try:
         while True:
@@ -167,7 +245,59 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     except Exception as e:
         logger.error(f"WebSocket error for case {case_id}: {e}")
     finally:
+        # Stop the extraction loop
+        stop_extraction.set()
+        if extraction_task:
+            extraction_task.cancel()
+            try:
+                await extraction_task
+            except asyncio.CancelledError:
+                pass
+
         await stt.stop()
+        
+        # Run one final extraction to capture any remaining text
+        if ANTHROPIC_API_KEY and len(accumulated_transcript) > last_extracted_length:
+            logger.info("Running final NEMSIS extraction before closing")
+            try:
+                async with extraction_lock:
+                    current_nemsis = await extract_nemsis(
+                        accumulated_transcript, current_nemsis
+                    )
+                    nemsis_json = current_nemsis.model_dump_json()
+                    now = datetime.now(timezone.utc).isoformat()
+                    
+                    patient = current_nemsis.patient
+                    patient_name = (
+                        " ".join(
+                            filter(
+                                None,
+                                [patient.patient_name_first, patient.patient_name_last],
+                            )
+                        )
+                        or None
+                    )
+                    core_complete = is_core_info_complete(current_nemsis)
+                    
+                    await db.execute(
+                        """UPDATE cases SET
+                            nemsis_data = ?, patient_name = ?, patient_address = ?,
+                            patient_age = ?, patient_gender = ?, core_info_complete = ?, updated_at = ?
+                        WHERE id = ?""",
+                        (
+                            nemsis_json,
+                            patient_name,
+                            patient.patient_address,
+                            patient.patient_age,
+                            patient.patient_gender,
+                            1 if core_complete else 0,
+                            now,
+                            case_id,
+                        ),
+                    )
+            except Exception as e:
+                logger.error("Final NEMSIS extraction error: %s", e)
+        
         # Mark case as completed if it was active
         now = datetime.now(timezone.utc).isoformat()
         await db.execute(

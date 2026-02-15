@@ -200,85 +200,17 @@
                     <p class="hint">Name, Address, Age, Gender required to initiate lookup</p>
                 </div>
 
-                <!-- Data Sources Grid -->
+                <!-- Data Sources Grid - Real FHIR/Synthea source only -->
                 <div id="sourcesGrid" class="sources-grid" style="display: none;">
                     <div class="source-category">
-                        <h3>🏥 Health Information Exchanges</h3>
-                        <div class="source-item" id="sourceHIE">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">Regional HIE Network</span>
-                                <span class="source-desc">Hospital records, discharge summaries</span>
-                            </div>
-                            <div class="source-result" id="resultHIE"></div>
-                        </div>
-                        <div class="source-item" id="sourceParticle">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">Particle Health API</span>
-                                <span class="source-desc">Aggregated patient data network</span>
-                            </div>
-                            <div class="source-result" id="resultParticle"></div>
-                        </div>
-                    </div>
-
-                    <div class="source-category">
-                        <h3>📊 Clinical Data Sources</h3>
+                        <h3>📊 FHIR Health Records</h3>
                         <div class="source-item" id="sourceFHIR">
                             <div class="source-status waiting"></div>
                             <div class="source-info">
                                 <span class="source-name">FHIR R4 / Synthea</span>
-                                <span class="source-desc">Standardized health records</span>
+                                <span class="source-desc">Conditions, Medications, Allergies, Immunizations, Procedures</span>
                             </div>
                             <div class="source-result" id="resultFHIR"></div>
-                        </div>
-                        <div class="source-item" id="sourceEHR">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">EHR Systems Query</span>
-                                <span class="source-desc">Epic, Cerner, Allscripts</span>
-                            </div>
-                            <div class="source-result" id="resultEHR"></div>
-                        </div>
-                    </div>
-
-                    <div class="source-category">
-                        <h3>💊 Pharmacy & Medications</h3>
-                        <div class="source-item" id="sourcePDMP">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">PDMP Registry</span>
-                                <span class="source-desc">Prescription drug monitoring</span>
-                            </div>
-                            <div class="source-result" id="resultPDMP"></div>
-                        </div>
-                        <div class="source-item" id="sourcePharmacy">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">Pharmacy Networks</span>
-                                <span class="source-desc">CVS, Walgreens, retail chains</span>
-                            </div>
-                            <div class="source-result" id="resultPharmacy"></div>
-                        </div>
-                    </div>
-
-                    <div class="source-category">
-                        <h3>🛡️ Public Health Records</h3>
-                        <div class="source-item" id="sourceIIS">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">Immunization Registry</span>
-                                <span class="source-desc">State IIS database</span>
-                            </div>
-                            <div class="source-result" id="resultIIS"></div>
-                        </div>
-                        <div class="source-item" id="sourceGP">
-                            <div class="source-status waiting"></div>
-                            <div class="source-info">
-                                <span class="source-name">Primary Care Provider</span>
-                                <span class="source-desc">GP practice records</span>
-                            </div>
-                            <div class="source-result" id="resultGP"></div>
                         </div>
                     </div>
                 </div>
@@ -286,40 +218,40 @@
                 <!-- Aggregated Patient History -->
                 <div id="patientHistory" class="patient-history" style="display: none;">
                     <div class="history-header">
-                        <h3>📁 Aggregated Patient History</h3>
+                        <h3>📁 Patient Medical History</h3>
                         <span class="history-sources">Data from <span id="sourceCount">0</span> sources</span>
                     </div>
                     
-                    <div class="history-section allergies-section">
+                    <div class="history-section allergies-section" id="allergiesSection">
                         <h4>⚠️ ALLERGIES & ALERTS</h4>
                         <div class="history-content" id="historyAllergies">
                             <span class="no-data">Checking...</span>
                         </div>
                     </div>
 
-                    <div class="history-section">
+                    <div class="history-section" id="medicationsSection">
                         <h4>💊 Current Medications</h4>
                         <div class="history-content" id="historyMedications">
                             <span class="no-data">Checking...</span>
                         </div>
                     </div>
 
-                    <div class="history-section">
+                    <div class="history-section" id="conditionsSection">
                         <h4>🩺 Medical Conditions</h4>
                         <div class="history-content" id="historyConditions">
                             <span class="no-data">Checking...</span>
                         </div>
                     </div>
 
-                    <div class="history-section">
-                        <h4>💉 Recent Immunizations</h4>
+                    <div class="history-section" id="immunizationsSection">
+                        <h4>💉 Immunizations</h4>
                         <div class="history-content" id="historyImmunizations">
                             <span class="no-data">Checking...</span>
                         </div>
                     </div>
 
-                    <div class="history-section">
-                        <h4>🏥 Recent Procedures</h4>
+                    <div class="history-section" id="proceduresSection">
+                        <h4>🏥 Procedures</h4>
                         <div class="history-content" id="historyProcedures">
                             <span class="no-data">Checking...</span>
                         </div>
