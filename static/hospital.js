@@ -158,6 +158,10 @@ function handleEvent(msg) {
         cases[caseId] = { id: caseId, nemsis: {}, insights: null };
     }
 
+    if (!selectedCaseId) {
+        selectedCaseId = caseId;
+    }
+
     if (msg.type === "nemsis_update") {
         cases[caseId].nemsis = msg.nemsis || {};
         cases[caseId].patient_name = msg.patient_name || cases[caseId].patient_name;
@@ -256,6 +260,7 @@ function renderCaseList() {
     }
 
     const activeId = selectedCaseId && cases[selectedCaseId] ? selectedCaseId : ids[0];
+    if (!selectedCaseId) selectedCaseId = activeId;
     const renderIds = [activeId];
 
     body.innerHTML = renderIds.map((id) => {
