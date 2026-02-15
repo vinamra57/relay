@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -31,9 +32,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Word count threshold - trigger extraction after this many new words
-WORD_COUNT_THRESHOLD = 10
+WORD_COUNT_THRESHOLD = 6
 # Max interval between extractions (fallback if not enough words)
-MAX_EXTRACTION_INTERVAL = 3
+MAX_EXTRACTION_INTERVAL = 0.5
 
 
 @router.websocket("/ws/stream/{case_id}")
@@ -69,6 +70,18 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     dummy_vitals_task: asyncio.Task | None = None
     dummy_running = True
     vitals_sequence = VitalsSequence(load_demo_vitals())
+    pending_committed = ""
+    pending_sentence_count = 0
+    sentence_end_re = re.compile(r"[.!?]")
+    sentence_end_at_end_re = re.compile(r"[.!?](\"|'|”)?\\s*$")
+    gp_name_re = re.compile(
+        r"(?:patient'?s\\s+)?(?:gp|primary care(?: doctor)?|doctor)\\s+(?:is\\s+)?(?:(Dr\\.?|Doctor)\\s+)?([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)",
+        re.IGNORECASE,
+    )
+    gp_practice_re = re.compile(
+        r"(?:gp|primary care(?: doctor)?|doctor).*?\\bat\\s+([^\\.]+)",
+        re.IGNORECASE,
+    )
 
     async def _safe_send(data: dict) -> None:
         try:
@@ -114,6 +127,59 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
             "nemsis": nemsis_dict,
             "patient_name": patient_name,
         })
+
+    def _count_sentence_endings(text: str) -> int:
+        return len(sentence_end_re.findall(text))
+
+    def _ends_with_sentence(text: str) -> bool:
+        return bool(sentence_end_at_end_re.search(text.strip()))
+
+    async def _flush_committed(text: str) -> None:
+        nonlocal accumulated_transcript
+        if not text:
+            return
+
+        now = datetime.now(UTC).isoformat()
+        await db.execute(
+            "INSERT INTO transcripts (case_id, segment_text, timestamp, segment_type)"
+            " VALUES (?, ?, ?, ?)",
+            (case_id, text, now, "committed"),
+        )
+
+        accumulated_transcript += (" " + text) if accumulated_transcript else text
+        await db.execute(
+            "UPDATE cases SET full_transcript = ?, updated_at = ? WHERE id = ?",
+            (accumulated_transcript, now, case_id),
+        )
+        await db.commit()
+
+        await _safe_send(
+            {
+                "type": "transcript_committed",
+                "text": text,
+                "full_transcript": accumulated_transcript,
+            }
+        )
+        extract_now.set()
+
+    def _infer_gp_details(text: str) -> None:
+        if not text:
+            return
+        patient = current_nemsis.patient
+        if not patient.gp_name:
+            match = gp_name_re.search(text)
+            if match:
+                title = match.group(1) or ""
+                name = match.group(2) or ""
+                combined = " ".join(part for part in [title, name] if part).strip()
+                if combined:
+                    patient.gp_name = combined
+        if not patient.gp_practice_name:
+            match = gp_practice_re.search(text)
+            if match:
+                practice = match.group(1).strip()
+                if practice:
+                    patient.gp_practice_name = practice
 
     async def _schedule_gp_pending() -> None:
         await asyncio.sleep(GP_CALL_PENDING_SECONDS)
@@ -175,38 +241,32 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
         current_partial = text
         await _safe_send({"type": "transcript_partial", "text": text})
 
-        full_text = (accumulated_transcript + " " + text).strip() if accumulated_transcript else text
+        full_text = accumulated_transcript
+        if pending_committed:
+            full_text = (full_text + " " + pending_committed).strip() if full_text else pending_committed
+        full_text = (full_text + " " + text).strip() if full_text else text
         current_word_count = len(full_text.split())
         if current_word_count - last_extracted_word_count >= WORD_COUNT_THRESHOLD:
             extract_now.set()
 
     async def on_committed(text: str):
-        nonlocal accumulated_transcript, current_partial
+        nonlocal current_partial, pending_committed, pending_sentence_count
 
-        now = datetime.now(UTC).isoformat()
         current_partial = ""
+        if text:
+            pending_committed = f"{pending_committed} {text}".strip() if pending_committed else text
+            pending_sentence_count += _count_sentence_endings(text)
 
-        await db.execute(
-            "INSERT INTO transcripts (case_id, segment_text, timestamp, segment_type)"
-            " VALUES (?, ?, ?, ?)",
-            (case_id, text, now, "committed"),
-        )
+        should_flush = False
+        if pending_sentence_count >= 2:
+            should_flush = True
+        elif pending_committed and _ends_with_sentence(pending_committed):
+            should_flush = True
 
-        accumulated_transcript += (" " + text) if accumulated_transcript else text
-        await db.execute(
-            "UPDATE cases SET full_transcript = ?, updated_at = ? WHERE id = ?",
-            (accumulated_transcript, now, case_id),
-        )
-        await db.commit()
-
-        await _safe_send(
-            {
-                "type": "transcript_committed",
-                "text": text,
-                "full_transcript": accumulated_transcript,
-            }
-        )
-        extract_now.set()
+        if should_flush:
+            await _flush_committed(pending_committed)
+            pending_committed = ""
+            pending_sentence_count = 0
 
     async def _extraction_loop():
         nonlocal current_nemsis, core_triggered, gp_call_triggered, last_extracted_word_count
@@ -236,6 +296,8 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
             extract_now.clear()
 
             full_text = accumulated_transcript
+            if pending_committed:
+                full_text = (full_text + " " + pending_committed).strip() if full_text else pending_committed
             if current_partial:
                 full_text = (full_text + " " + current_partial).strip() if full_text else current_partial
 
@@ -246,6 +308,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
             async with extraction_lock:
                 try:
                     current_nemsis = await extract_nemsis(full_text, current_nemsis)
+                    _infer_gp_details(full_text)
                     last_extracted_word_count = current_word_count
                     await _persist_and_emit_nemsis()
 
@@ -495,6 +558,13 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                 pass
 
         await stt.stop()
+
+        if current_partial:
+            pending_committed = f"{pending_committed} {current_partial}".strip() if pending_committed else current_partial
+        if pending_committed:
+            await _flush_committed(pending_committed)
+            pending_committed = ""
+            pending_sentence_count = 0
 
         if len(accumulated_transcript.split()) > last_extracted_word_count:
             logger.info("Running final NEMSIS extraction before closing")

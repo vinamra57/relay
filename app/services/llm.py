@@ -1,10 +1,11 @@
+import json
 import logging
 import re
 from typing import TypeVar
 
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.config import (
     ANTHROPIC_API_KEY,
@@ -44,6 +45,83 @@ def _strip_json(text: str) -> str:
     if start != -1 and end != -1 and end > start:
         return text[start:end + 1]
     return text
+
+
+def _coerce_clinical_insights(data: dict) -> dict:
+    def _as_str(item: object) -> str:
+        return str(item).strip()
+
+    def _parse_confidence(text: str) -> float:
+        match = re.search(r"(\d+(?:\.\d+)?)\s*%?", text)
+        if not match:
+            return 0.0
+        value = float(match.group(1))
+        if value > 1.0:
+            value = value / 100.0
+        return max(0.0, min(1.0, value))
+
+    def _coerce_list(value: object, builder) -> list:
+        if not isinstance(value, list):
+            return []
+        output = []
+        for item in value:
+            if isinstance(item, dict):
+                output.append(item)
+            else:
+                output.append(builder(item))
+        return output
+
+    prep_alerts = _coerce_list(
+        data.get("prep_alerts"),
+        lambda item: {"label": _as_str(item), "severity": "moderate", "action": _as_str(item), "evidence": []},
+    )
+    contraindications = _coerce_list(
+        data.get("contraindications"),
+        lambda item: {"label": _as_str(item), "reason": _as_str(item), "evidence": []},
+    )
+    likely_diagnoses = _coerce_list(
+        data.get("likely_diagnoses"),
+        lambda item: {
+            "label": _as_str(item),
+            "confidence": _parse_confidence(_as_str(item)),
+            "evidence": [],
+        },
+    )
+    evidence = _coerce_list(
+        data.get("evidence"),
+        lambda item: {"source_type": "summary", "source_label": "LLM", "summary": _as_str(item)},
+    )
+    attachments = _coerce_list(
+        data.get("attachments"),
+        lambda item: {"name": _as_str(item), "file_type": "", "url": "", "source": "LLM", "timestamp": ""},
+    )
+    history_warnings = data.get("history_warnings") if isinstance(data.get("history_warnings"), list) else []
+    updated_at = data.get("updated_at") if isinstance(data.get("updated_at"), str) else ""
+
+    return {
+        "prep_alerts": prep_alerts,
+        "contraindications": contraindications,
+        "likely_diagnoses": likely_diagnoses,
+        "evidence": evidence,
+        "attachments": attachments,
+        "history_warnings": history_warnings,
+        "updated_at": updated_at,
+    }
+
+
+def _coerce_payload(data: object, response_model: type[T]) -> object:
+    name = response_model.__name__
+    if name == "HistoryWarnings":
+        if isinstance(data, list):
+            return {"warnings": [str(item) for item in data]}
+        if isinstance(data, dict) and isinstance(data.get("warnings"), list):
+            return {"warnings": [str(item) for item in data.get("warnings") or []]}
+        return {"warnings": []}
+    if name == "ClinicalInsights":
+        if isinstance(data, dict):
+            return _coerce_clinical_insights(data)
+        return _coerce_clinical_insights({})
+    return data
 
 
 class LLMClient:
@@ -110,7 +188,15 @@ class LLMClient:
                 if hasattr(block, "text"):
                     raw += block.text
             raw = _strip_json(raw)
-            return response_model.model_validate_json(raw)
+            try:
+                return response_model.model_validate_json(raw)
+            except ValidationError:
+                try:
+                    payload = json.loads(raw)
+                except Exception:
+                    raise
+                coerced = _coerce_payload(payload, response_model)
+                return response_model.model_validate(coerced)
 
         response = await self._openai.beta.chat.completions.parse(
             model=model,

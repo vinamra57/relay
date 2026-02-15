@@ -38,6 +38,12 @@ GP_CALL_PENDING_SECONDS = int(os.getenv("GP_CALL_PENDING_SECONDS", "8"))
 # Perplexity Sonar API (GP contact resolution)
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 
+# Demo override for medical history lookup
+FHIR_DEMO_PATIENT_URL = os.getenv(
+    "FHIR_DEMO_PATIENT_URL",
+    "https://hapi.fhir.org/baseR4/Patient/131273059/$everything",
+)
+
 # Twilio (outbound voice calls)
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")

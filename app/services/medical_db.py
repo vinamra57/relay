@@ -14,9 +14,13 @@ paramedic and ER use.
 """
 
 import logging
+from typing import Any
+
+import httpx
 
 from app.models.medical_history import MedicalHistoryReport, PatientMedicalHistory
 from app.services.fhir_client import query_fhir_servers
+from app.config import FHIR_DEMO_PATIENT_URL
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,15 @@ async def query_records(
     """
     logger.info("Querying medical databases for %s", patient_name)
 
+    if FHIR_DEMO_PATIENT_URL:
+        demo_report = await build_demo_history_report(
+            demo_url=FHIR_DEMO_PATIENT_URL,
+            patient_name=patient_name,
+            patient_age=patient_age,
+            patient_gender=patient_gender,
+        )
+        return demo_report.report_text
+
     report = await build_medical_history_report(
         patient_name=patient_name,
         patient_age=patient_age,
@@ -51,6 +64,191 @@ async def query_records(
     )
 
     return report.report_text
+
+
+async def _fetch_demo_patient(url: str) -> dict[str, Any] | None:
+    demo_url = url.strip()
+    if not demo_url.startswith("http"):
+        demo_url = f"https://{demo_url.lstrip('/')}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                demo_url,
+                params={"_format": "json"},
+                headers={"Accept": "application/fhir+json"},
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        logger.warning("Demo FHIR fetch failed for %s: %s", demo_url, exc)
+        return None
+
+
+def _extract_patient_name(resource: dict[str, Any]) -> str:
+    names = resource.get("name") or []
+    if names:
+        primary = names[0]
+        given = " ".join(primary.get("given") or []).strip()
+        family = primary.get("family", "").strip()
+        full = " ".join(part for part in [given, family] if part)
+        if full:
+            return full
+    return ""
+
+
+def _extract_patient_address(resource: dict[str, Any]) -> str:
+    addresses = resource.get("address") or []
+    if not addresses:
+        return ""
+    primary = addresses[0]
+    lines = primary.get("line") or []
+    city = primary.get("city")
+    state = primary.get("state")
+    postal = primary.get("postalCode")
+    parts = [*lines, city, state, postal]
+    return ", ".join([p for p in parts if p])
+
+
+def _extract_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+    patient = None
+    conditions: list[str] = []
+    allergies: list[str] = []
+    medications: list[str] = []
+    immunizations: list[str] = []
+    procedures: list[str] = []
+
+    for entry in bundle.get("entry") or []:
+        resource = entry.get("resource") or {}
+        rtype = resource.get("resourceType")
+        if rtype == "Patient" and patient is None:
+            patient = resource
+        elif rtype == "Condition":
+            text = (
+                resource.get("code", {}).get("text")
+                or (resource.get("code", {}).get("coding") or [{}])[0].get("display")
+                or ""
+            )
+            if text:
+                conditions.append(text)
+        elif rtype == "AllergyIntolerance":
+            text = (
+                resource.get("code", {}).get("text")
+                or (resource.get("code", {}).get("coding") or [{}])[0].get("display")
+                or ""
+            )
+            if text:
+                allergies.append(text)
+        elif rtype in ("MedicationStatement", "MedicationRequest"):
+            med = resource.get("medicationCodeableConcept") or {}
+            text = med.get("text") or (med.get("coding") or [{}])[0].get("display") or ""
+            if text:
+                medications.append(text)
+        elif rtype == "Immunization":
+            vaccine = resource.get("vaccineCode") or {}
+            text = vaccine.get("text") or (vaccine.get("coding") or [{}])[0].get("display") or ""
+            if text:
+                immunizations.append(text)
+        elif rtype == "Procedure":
+            proc = resource.get("code") or {}
+            text = proc.get("text") or (proc.get("coding") or [{}])[0].get("display") or ""
+            if text:
+                procedures.append(text)
+
+    return {
+        "patient": patient,
+        "conditions": conditions,
+        "allergies": allergies,
+        "medications": medications,
+        "immunizations": immunizations,
+        "procedures": procedures,
+    }
+
+
+async def build_demo_history_report(
+    demo_url: str,
+    patient_name: str,
+    patient_age: str,
+    patient_gender: str,
+) -> MedicalHistoryReport:
+    resource = await _fetch_demo_patient(demo_url)
+    patient_id = ""
+    demo_name = ""
+    demo_gender = ""
+    demo_dob = ""
+    demo_address = ""
+    conditions: list[str] = []
+    allergies: list[str] = []
+    medications: list[str] = []
+    immunizations: list[str] = []
+    procedures: list[str] = []
+
+    if resource:
+        if resource.get("resourceType") == "Bundle":
+            extracted = _extract_from_bundle(resource)
+            patient = extracted.get("patient") or {}
+            patient_id = patient.get("id", "")
+            demo_name = _extract_patient_name(patient)
+            demo_gender = patient.get("gender", "") or ""
+            demo_dob = patient.get("birthDate", "") or ""
+            demo_address = _extract_patient_address(patient)
+            conditions = extracted.get("conditions", [])
+            allergies = extracted.get("allergies", [])
+            medications = extracted.get("medications", [])
+            immunizations = extracted.get("immunizations", [])
+            procedures = extracted.get("procedures", [])
+        else:
+            patient_id = resource.get("id", "")
+            demo_name = _extract_patient_name(resource)
+            demo_gender = resource.get("gender", "") or ""
+            demo_dob = resource.get("birthDate", "") or ""
+            demo_address = _extract_patient_address(resource)
+
+    display_name = demo_name or patient_name
+    display_gender = demo_gender or patient_gender
+
+    conditions = conditions or []
+    if patient_id:
+        conditions.append(f"Record located in HAPI FHIR (Patient/{patient_id})")
+    else:
+        conditions.append("Record located in HAPI FHIR demo registry")
+
+    demographic_bits = []
+    if display_name:
+        demographic_bits.append(f"Name: {display_name}")
+    if display_gender:
+        demographic_bits.append(f"Gender: {display_gender}")
+    if demo_dob:
+        demographic_bits.append(f"DOB: {demo_dob}")
+    if demo_address:
+        demographic_bits.append(f"Address: {demo_address}")
+
+    if demographic_bits:
+        conditions.append(" | ".join(demographic_bits))
+
+    if not allergies:
+        allergies = ["No known drug allergies (NKDA)"]
+
+    history = PatientMedicalHistory(
+        source=demo_url,
+        fhir_patient_id=patient_id,
+        patient_name=display_name,
+        patient_dob=demo_dob or None,
+        patient_gender=display_gender or None,
+        conditions=conditions,
+        allergies=allergies,
+        medications=medications,
+        immunizations=immunizations,
+        procedures=procedures,
+    )
+
+    report_text = format_medical_history_report(history, display_name, patient_age)
+
+    return MedicalHistoryReport(
+        found=True,
+        history=history,
+        report_text=report_text,
+    )
 
 
 async def build_medical_history_report(
