@@ -15,14 +15,11 @@ import logging
 
 import httpx
 
-from app.config import DUMMY_MODE
-
 logger = logging.getLogger(__name__)
 
-# Public FHIR R4 test servers (no auth required, Synthea data available)
+# Synthea FHIR R4 test server (synthetic patient data)
 FHIR_SERVERS = [
-    "https://launch.smarthealthit.org/v/r4/fhir",  # Rich Synthea data
-    "https://hapi.fhir.org/baseR4",
+    "https://launch.smarthealthit.org/v/r4/fhir",  # Synthea data
 ]
 
 FHIR_HEADERS = {
@@ -355,9 +352,6 @@ async def query_fhir_servers(
     Returns:
         Dict with parsed medical record, or None if no match found.
     """
-    if DUMMY_MODE:
-        return _dummy_fhir_response(patient_name, patient_gender, patient_dob)
-
     given, family = _split_name(patient_name)
 
     for base_url in FHIR_SERVERS:
@@ -447,7 +441,7 @@ def _get_patient_name(patient: dict) -> str:
     return f"{given} {family}".strip() or name.get("text", "Unknown")
 
 
-# --- Dummy / synthetic data pools for DUMMY_MODE ---
+# --- Dummy / synthetic data (used by tests and as fallback) ---
 
 _CONDITION_POOL = [
     "Essential hypertension",

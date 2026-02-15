@@ -10,7 +10,7 @@ to retrieve the patient's medical history including:
 - Past procedures
 
 The results are formatted into a clinical report text suitable for
-paramedic and ER use. In DUMMY_MODE, returns synthetic but realistic data.
+paramedic and ER use.
 """
 
 import logging

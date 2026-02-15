@@ -10,7 +10,7 @@ import re
 
 import httpx
 
-from app.config import DUMMY_MODE, PERPLEXITY_API_KEY
+from app.config import PERPLEXITY_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,6 @@ async def lookup_gp_phone(
     Returns:
         Dict with keys: phone, practice_name, address, source — or None if not found.
     """
-    if DUMMY_MODE:
-        return _dummy_lookup(gp_name, practice_name)
-
     if not PERPLEXITY_API_KEY:
         logger.warning("PERPLEXITY_API_KEY not set, cannot look up GP phone")
         return None

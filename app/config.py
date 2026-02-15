@@ -6,7 +6,7 @@ load_dotenv()
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-DUMMY_MODE = os.getenv("DUMMY_MODE", "true").lower() == "true"
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "aria_health.db")
 
 # Perplexity Sonar API (GP contact resolution)

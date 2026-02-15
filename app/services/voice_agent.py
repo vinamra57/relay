@@ -10,7 +10,6 @@ import logging
 import httpx
 
 from app.config import (
-    DUMMY_MODE,
     ELEVENLABS_AGENT_ID,
     ELEVENLABS_API_KEY,
     ELEVENLABS_PHONE_NUMBER_ID,
@@ -42,9 +41,6 @@ async def place_gp_call(
     Returns:
         Dict with keys: call_sid, conversation_id, status
     """
-    if DUMMY_MODE:
-        return _dummy_call(patient_name, case_id)
-
     if not ELEVENLABS_API_KEY:
         logger.error("ELEVENLABS_API_KEY not set, cannot place GP call")
         return {"call_sid": None, "conversation_id": None, "status": "error",

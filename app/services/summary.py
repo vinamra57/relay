@@ -1,15 +1,20 @@
 import json
 import logging
+import re
 
-from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 
-from app.config import DUMMY_MODE, OPENAI_API_KEY
+from app.config import ANTHROPIC_API_KEY
 from app.database import get_db
 from app.models.summary import CaseSummary, HospitalSummary
 
 logger = logging.getLogger(__name__)
 
-client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+try:
+    client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+except Exception as e:
+    logger.warning("Anthropic client init failed (summary will be disabled): %s", e)
+    client = None
 
 CASE_SUMMARY_PROMPT = """You are a clinical summarization AI for emergency medical services.
 
@@ -21,7 +26,10 @@ Rules:
 - clinical_narrative: 2-4 sentences covering the clinical picture, interventions, and status.
 - key_findings: List of 3-6 most important clinical findings (vitals, ECG, exam results).
 - actions_taken: List of procedures and medications administered.
-- urgency: One of "critical", "high", "moderate", "low" based on clinical picture."""
+- urgency: One of "critical", "high", "moderate", "low" based on clinical picture.
+
+Respond with ONLY a JSON object with these exact keys: one_liner, clinical_narrative, key_findings, actions_taken, urgency.
+No markdown, no explanation."""
 
 HOSPITAL_SUMMARY_PROMPT = """You are a hospital preparation AI for incoming EMS patients.
 
@@ -38,7 +46,10 @@ Rules:
 - recommended_preparations: Specific preparations the hospital should make (e.g. cath lab, trauma bay).
 - patient_history: Known medical history, GP info, database records.
 - priority_level: One of "critical", "high", "moderate", "low".
-- special_considerations: Allergies, access issues, family contact, or other notes."""
+- special_considerations: Allergies, access issues, family contact, or other notes.
+
+Respond with ONLY a JSON object with these exact keys: patient_demographics, chief_complaint, vitals_summary, procedures_performed, medications_administered, clinical_impression, recommended_preparations, patient_history, priority_level, special_considerations.
+No markdown, no explanation."""
 
 
 async def _load_case_data(case_id: str) -> dict:
@@ -67,12 +78,48 @@ async def _load_case_data(case_id: str) -> dict:
     }
 
 
+def _extract_json_from_response(raw: str) -> str:
+    """Strip markdown code fence if present and return JSON string."""
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+    return raw
+
+
+def _empty_case_summary() -> CaseSummary:
+    """Minimal valid case summary when Claude is not available."""
+    return CaseSummary(
+        one_liner="No summary available.",
+        clinical_narrative="",
+        key_findings=[],
+        actions_taken=[],
+        urgency="moderate",
+    )
+
+
+def _empty_hospital_summary() -> HospitalSummary:
+    """Minimal valid hospital summary when Claude is not available."""
+    return HospitalSummary(
+        patient_demographics="",
+        chief_complaint="",
+        vitals_summary="",
+        procedures_performed="",
+        medications_administered="",
+        clinical_impression="",
+        recommended_preparations="",
+        patient_history="",
+        priority_level="moderate",
+        special_considerations="",
+    )
+
+
 async def generate_summary(case_id: str, urgency: str = "standard") -> CaseSummary:
-    """Generate a case summary using GPT-5.2 structured output or dummy mode."""
+    """Generate a case summary using Claude."""
     data = await _load_case_data(case_id)
 
-    if DUMMY_MODE or not client:
-        return _dummy_case_summary(data)
+    if not client:
+        return _empty_case_summary()
 
     user_content = (
         f"Urgency context: {urgency}\n\n"
@@ -83,30 +130,29 @@ async def generate_summary(case_id: str, urgency: str = "standard") -> CaseSumma
     )
 
     try:
-        response = await client.beta.chat.completions.parse(
-            model="gpt-5.2",
-            messages=[
-                {"role": "system", "content": CASE_SUMMARY_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            response_format=CaseSummary,
+        message = await client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=2048,
+            system=CASE_SUMMARY_PROMPT,
+            messages=[{"role": "user", "content": user_content}],
         )
-        parsed = response.choices[0].message.parsed
-        if parsed is None:
-            logger.error("GPT-5.2 returned no parsed case summary for case %s", case_id)
-            return _dummy_case_summary(data)
-        return parsed
+        raw = ""
+        for block in message.content:
+            if hasattr(block, "text"):
+                raw += block.text
+        raw = _extract_json_from_response(raw)
+        return CaseSummary.model_validate_json(raw)
     except Exception as e:
         logger.error("Case summary generation failed for %s: %s", case_id, e)
-        return _dummy_case_summary(data)
+        return _empty_case_summary()
 
 
 async def get_summary_for_hospital(case_id: str) -> HospitalSummary:
-    """Generate a hospital preparation summary using GPT-5.2 or dummy mode."""
+    """Generate a hospital preparation summary using Claude."""
     data = await _load_case_data(case_id)
 
-    if DUMMY_MODE or not client:
-        return _dummy_hospital_summary(data)
+    if not client:
+        return _empty_hospital_summary()
 
     user_content = (
         f"Transcript:\n{data['transcript']}\n\n"
@@ -116,200 +162,18 @@ async def get_summary_for_hospital(case_id: str) -> HospitalSummary:
     )
 
     try:
-        response = await client.beta.chat.completions.parse(
-            model="gpt-5.2",
-            messages=[
-                {"role": "system", "content": HOSPITAL_SUMMARY_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            response_format=HospitalSummary,
+        message = await client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=2048,
+            system=HOSPITAL_SUMMARY_PROMPT,
+            messages=[{"role": "user", "content": user_content}],
         )
-        parsed = response.choices[0].message.parsed
-        if parsed is None:
-            logger.error("GPT-5.2 returned no parsed hospital summary for case %s", case_id)
-            return _dummy_hospital_summary(data)
-        return parsed
+        raw = ""
+        for block in message.content:
+            if hasattr(block, "text"):
+                raw += block.text
+        raw = _extract_json_from_response(raw)
+        return HospitalSummary.model_validate_json(raw)
     except Exception as e:
         logger.error("Hospital summary generation failed for %s: %s", case_id, e)
-        return _dummy_hospital_summary(data)
-
-
-def _dummy_case_summary(data: dict) -> CaseSummary:
-    """Build a deterministic case summary from NEMSIS data for dummy/test mode."""
-    nemsis = data.get("nemsis", {})
-    patient = nemsis.get("patient", {})
-    vitals = nemsis.get("vitals", {})
-    situation = nemsis.get("situation", {})
-    procedures = nemsis.get("procedures", {})
-    medications = nemsis.get("medications", {})
-    history = nemsis.get("history", {})
-
-    # Build name
-    first = patient.get("patient_name_first") or ""
-    last = patient.get("patient_name_last") or ""
-    name = f"{first} {last}".strip() or "Unknown patient"
-
-    age = patient.get("patient_age") or "unknown age"
-    gender = patient.get("patient_gender") or "unknown gender"
-    complaint = situation.get("chief_complaint") or "unspecified complaint"
-    impression = situation.get("primary_impression") or ""
-
-    one_liner = f"{name}, {age}y {gender}, {complaint}"
-    if len(one_liner) > 100:
-        one_liner = one_liner[:97] + "..."
-
-    # Narrative
-    parts = [f"{name} is a {age} year old {gender} presenting with {complaint}."]
-    if impression:
-        parts.append(f"Primary impression: {impression}.")
-    proc_list = procedures.get("procedures") or []
-    med_list = medications.get("medications") or []
-    if proc_list or med_list:
-        parts.append(
-            f"Interventions include {len(proc_list)} procedure(s) and {len(med_list)} medication(s)."
-        )
-    med_history = history.get("medical_history") or []
-    if med_history:
-        parts.append(f"PMH: {', '.join(med_history)}.")
-
-    # Key findings
-    findings: list[str] = []
-    if vitals.get("systolic_bp") and vitals.get("diastolic_bp"):
-        findings.append(f"BP {vitals['systolic_bp']}/{vitals['diastolic_bp']}")
-    if vitals.get("heart_rate"):
-        findings.append(f"HR {vitals['heart_rate']}")
-    if vitals.get("respiratory_rate"):
-        findings.append(f"RR {vitals['respiratory_rate']}")
-    if vitals.get("spo2"):
-        findings.append(f"SpO2 {vitals['spo2']}%")
-    if vitals.get("gcs_total"):
-        findings.append(f"GCS {vitals['gcs_total']}")
-    if vitals.get("pain_scale") is not None:
-        findings.append(f"Pain {vitals['pain_scale']}/10")
-    if impression:
-        findings.append(impression)
-    if not findings:
-        findings.append("No vitals recorded")
-
-    # Urgency
-    urgency = "moderate"
-    if impression and any(
-        k in impression.lower() for k in ["stemi", "stroke", "cardiac arrest", "trauma"]
-    ):
-        urgency = "critical"
-    elif vitals.get("spo2") and vitals["spo2"] < 90:
-        urgency = "critical"
-    elif vitals.get("heart_rate") and vitals["heart_rate"] > 120:
-        urgency = "high"
-
-    return CaseSummary(
-        one_liner=one_liner,
-        clinical_narrative=" ".join(parts),
-        key_findings=findings,
-        actions_taken=proc_list + med_list,
-        urgency=urgency,
-    )
-
-
-def _dummy_hospital_summary(data: dict) -> HospitalSummary:
-    """Build a deterministic hospital summary from NEMSIS data for dummy/test mode."""
-    nemsis = data.get("nemsis", {})
-    patient = nemsis.get("patient", {})
-    vitals = nemsis.get("vitals", {})
-    situation = nemsis.get("situation", {})
-    procedures = nemsis.get("procedures", {})
-    medications = nemsis.get("medications", {})
-    history_data = nemsis.get("history", {})
-
-    first = patient.get("patient_name_first") or ""
-    last = patient.get("patient_name_last") or ""
-    name = f"{first} {last}".strip() or "Unknown"
-    age = patient.get("patient_age") or "unknown"
-    gender = patient.get("patient_gender") or "unknown"
-
-    # Vitals string
-    vitals_parts: list[str] = []
-    if vitals.get("systolic_bp") and vitals.get("diastolic_bp"):
-        vitals_parts.append(f"BP {vitals['systolic_bp']}/{vitals['diastolic_bp']}")
-    if vitals.get("heart_rate"):
-        vitals_parts.append(f"HR {vitals['heart_rate']}")
-    if vitals.get("respiratory_rate"):
-        vitals_parts.append(f"RR {vitals['respiratory_rate']}")
-    if vitals.get("spo2"):
-        vitals_parts.append(f"SpO2 {vitals['spo2']}%")
-    if vitals.get("blood_glucose"):
-        vitals_parts.append(f"Glucose {vitals['blood_glucose']}")
-    if vitals.get("gcs_total"):
-        vitals_parts.append(f"GCS {vitals['gcs_total']}")
-    if vitals.get("temperature"):
-        vitals_parts.append(f"Temp {vitals['temperature']}F")
-    if vitals.get("pain_scale") is not None:
-        vitals_parts.append(f"Pain {vitals['pain_scale']}/10")
-    vitals_str = ", ".join(vitals_parts) if vitals_parts else "No vitals recorded"
-
-    proc_list = procedures.get("procedures") or []
-    med_list = medications.get("medications") or []
-    impression = situation.get("primary_impression") or "Not yet determined"
-    secondary = situation.get("secondary_impression") or ""
-    clinical_str = impression
-    if secondary:
-        clinical_str += f"; {secondary}"
-
-    # Priority
-    priority = "moderate"
-    if any(k in impression.lower() for k in ["stemi", "stroke", "cardiac arrest", "trauma"]):
-        priority = "critical"
-    elif vitals.get("spo2") and vitals["spo2"] < 90:
-        priority = "critical"
-    elif vitals.get("heart_rate") and vitals["heart_rate"] > 120:
-        priority = "high"
-
-    # Recommended preparations
-    preps: list[str] = []
-    if "stemi" in impression.lower():
-        preps.append("Activate cardiac catheterization lab")
-        preps.append("Cardiology team standby")
-    if "stroke" in impression.lower():
-        preps.append("CT scanner standby")
-        preps.append("Neurology team standby")
-    if "trauma" in impression.lower():
-        preps.append("Trauma bay preparation")
-    if not preps:
-        preps.append("Standard ED preparation")
-
-    # Build patient history from multiple sources
-    history_parts: list[str] = []
-    med_history = history_data.get("medical_history") or []
-    if med_history:
-        history_parts.append(f"PMH: {', '.join(med_history)}")
-    gp = data.get("gp_response")
-    if gp:
-        history_parts.append(f"GP: {gp}")
-    db_resp = data.get("medical_db_response")
-    if db_resp:
-        history_parts.append(f"Records: {db_resp}")
-    history_str = " | ".join(history_parts) if history_parts else "No history available"
-
-    # Special considerations (allergies, disposition)
-    considerations: list[str] = []
-    allergies = history_data.get("allergies") or []
-    if allergies:
-        considerations.append(f"Allergies: {', '.join(allergies)}")
-    disposition = nemsis.get("disposition", {})
-    if disposition.get("destination_facility"):
-        considerations.append(f"Destination: {disposition['destination_facility']}")
-    if not considerations:
-        considerations.append("None noted")
-
-    return HospitalSummary(
-        patient_demographics=f"{name}, {age} year old {gender}",
-        chief_complaint=situation.get("chief_complaint") or "Not specified",
-        vitals_summary=vitals_str,
-        procedures_performed=", ".join(proc_list) if proc_list else "None recorded",
-        medications_administered=", ".join(med_list) if med_list else "None administered",
-        clinical_impression=clinical_str,
-        recommended_preparations="; ".join(preps),
-        patient_history=history_str,
-        priority_level=priority,
-        special_considerations="; ".join(considerations),
-    )
+        return _empty_hospital_summary()

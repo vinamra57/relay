@@ -5,8 +5,7 @@ import pytest_asyncio
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
-# Force dummy mode and in-memory DB for all tests
-os.environ["DUMMY_MODE"] = "true"
+# In-memory DB and no API keys for tests
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["ELEVENLABS_API_KEY"] = ""
 os.environ["DATABASE_PATH"] = ":memory:"
