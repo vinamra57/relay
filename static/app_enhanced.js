@@ -15,7 +15,8 @@ let fetchedMedicalHistory = null;
 // Data source status tracking
 const dataSources = {
     FHIR: { status: 'waiting', name: 'FHIR R4 / Synthea' },
-    GP: { status: 'waiting', name: 'GP Practice Call' }
+    GP: { status: 'waiting', name: 'GP Practice Call' },
+    GPData: { status: 'waiting', name: 'GP Records' }
 };
 
 // --- Case Management ---
@@ -197,6 +198,12 @@ function handleServerMessage(msg) {
         case "gp_call_complete":
             handleGpComplete(msg.gp_response);
             break;
+        case "gp_data_status":
+            handleGpDataStatus(msg.status, msg.message);
+            break;
+        case "gp_data_received":
+            handleGpDataReceived(msg.gp_document_summary || msg.gp_response, msg.gp_response);
+            break;
         case "error":
             console.error("Server error:", msg.message);
             setStatus("error", "Error");
@@ -361,12 +368,22 @@ function startSourceLookup() {
 function setSourceStatus(sourceId, status) {
     const item = document.getElementById(`source${sourceId}`);
     const statusDot = item?.querySelector('.source-status');
+    const statusMap = {
+        contacting: 'querying',
+        pending: 'querying',
+        waiting: 'waiting',
+        received: 'success',
+        success: 'success',
+        querying: 'querying',
+        failed: 'failed',
+    };
+    const normalized = statusMap[status] || status;
     
     if (item && statusDot) {
         // Update item class
-        item.className = `source-item ${status}`;
+        item.className = `source-item ${normalized}`;
         // Update status dot
-        statusDot.className = `source-status ${status}`;
+        statusDot.className = `source-status ${normalized}`;
         
         dataSources[sourceId].status = status;
     }
@@ -637,6 +654,33 @@ function handleGpComplete(gpResponse) {
     }
 }
 
+function handleGpDataStatus(status, message) {
+    const statusText = message || "Waiting for GP records...";
+    setSourceStatus('GPData', status || 'waiting');
+    updateSourceResult('GPData', statusText);
+    document.getElementById("gpDataSection").style.display = "block";
+    const statusEl = document.getElementById("gpDataStatus");
+    statusEl.textContent = statusText;
+    statusEl.className = `gp-call-status ${status === 'received' ? 'complete' : 'calling'}`;
+    const sourcesStatus = document.getElementById("sourcesStatus");
+    sourcesStatus.textContent = statusText;
+    sourcesStatus.classList.add("active");
+}
+
+function handleGpDataReceived(summaryText, fullText) {
+    setSourceStatus('GPData', 'success');
+    updateSourceResult('GPData', 'Records received');
+    document.getElementById("gpDataSection").style.display = "block";
+    const statusEl = document.getElementById("gpDataStatus");
+    statusEl.textContent = "Records received";
+    statusEl.className = "gp-call-status complete";
+    const displayText = summaryText || fullText || "GP records received.";
+    document.getElementById("gpDataTranscript").textContent = displayText;
+    const sourcesStatus = document.getElementById("sourcesStatus");
+    sourcesStatus.textContent = "GP records received";
+    sourcesStatus.classList.add("active");
+}
+
 function parseMedicalDbReport(text) {
     const lines = text.split("\n");
     const sections = {
@@ -715,6 +759,14 @@ function clearUI() {
     document.getElementById("patientHistory").style.display = "none";
     document.getElementById("clinicalAlerts").style.display = "none";
     document.getElementById("gpCallSection").style.display = "none";
+    document.getElementById("gpDataSection").style.display = "none";
+    const gpDataTranscript = document.getElementById("gpDataTranscript");
+    if (gpDataTranscript) gpDataTranscript.textContent = "";
+    const gpDataStatus = document.getElementById("gpDataStatus");
+    if (gpDataStatus) {
+        gpDataStatus.textContent = "Waiting for records...";
+        gpDataStatus.className = "gp-call-status";
+    }
     document.getElementById("hospitalBanner").style.display = "none";
     document.getElementById("sourcesStatus").textContent = "Waiting for Core ID";
     document.getElementById("sourcesStatus").classList.remove("active");

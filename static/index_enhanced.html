@@ -21,7 +21,7 @@
                     <line x1="12" y1="40" x2="18" y2="36" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
                     <circle cx="8" cy="42" r="3" fill="currentColor"/>
                 </svg>
-                <span class="logo-text">ARIA HEALTH</span>
+                <span class="logo-text">RELAY</span>
             </div>
             <span class="subtitle">AI Emergency Response System</span>
         </div>
@@ -229,6 +229,14 @@
                             </div>
                             <div class="source-result" id="resultGP"></div>
                         </div>
+                        <div class="source-item" id="sourceGPData">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">GP Records</span>
+                                <span class="source-desc">Inbound medical record packet after GP call</span>
+                            </div>
+                            <div class="source-result" id="resultGPData"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -284,6 +292,14 @@
                     <div class="gp-call-transcript" id="gpCallTranscript"></div>
                 </div>
 
+                <div id="gpDataSection" class="gp-call-section" style="display: none;">
+                    <div class="gp-call-header">
+                        <h3>GP Records Extract</h3>
+                        <span class="gp-call-status" id="gpDataStatus">Waiting for records...</span>
+                    </div>
+                    <div class="gp-call-transcript" id="gpDataTranscript"></div>
+                </div>
+
                 <!-- Clinical Decision Support -->
                 <div id="clinicalAlerts" class="clinical-alerts" style="display: none;">
                     <div class="alert-header">
@@ -306,6 +322,6 @@
         </div>
     </div>
 
-    <script src="/static/app_enhanced.js?v=7"></script>
+    <script src="/static/app_enhanced.js?v=8"></script>
 </body>
 </html>

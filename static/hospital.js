@@ -170,6 +170,8 @@ function handleEvent(msg) {
         cases[caseId].medical_db_response = msg.medical_db_response;
     } else if (msg.type === "gp_call_complete") {
         cases[caseId].gp_response = msg.gp_response;
+    } else if (msg.type === "gp_data_received") {
+        cases[caseId].gp_response = msg.gp_response;
     } else if (msg.type === "clinical_insights") {
         cases[caseId].insights = msg.insights;
     } else if (msg.type === "arrival_status") {
@@ -181,7 +183,7 @@ function handleEvent(msg) {
 
     renderCaseList();
     if (selectedCaseId === caseId) {
-        if (msg.type === "medical_db_complete" || msg.type === "gp_call_complete") {
+        if (msg.type === "medical_db_complete" || msg.type === "gp_call_complete" || msg.type === "gp_data_received") {
             loadCaseBundle(caseId).then(renderSelectedCase);
         } else {
             renderSelectedCase();

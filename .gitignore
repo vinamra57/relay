@@ -15,3 +15,4 @@ dist/
 build/
 .coverage
 htmlcov/
+data/doc/

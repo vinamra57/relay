@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from app.config import DUMMY_MODE
+from app.config import (
+    DUMMY_MODE,
+    GP_CALL_PENDING_SECONDS,
+    GP_DOCUMENT_DELAY_SECONDS,
+    GP_DOCUMENT_PATH,
+)
 from app.database import get_db
 from app.models.nemsis import NEMSISRecord
 from app.services.clinical_insights import update_case_insights
@@ -17,6 +22,7 @@ from app.services.core_info_checker import (
     trigger_medical_db,
 )
 from app.services.event_bus import event_bus
+from app.services.gp_documents import load_gp_document_summary
 from app.services.nemsis_extractor import extract_nemsis
 from app.services.transcription import TranscriptionService
 from app.services.vitals_dataset import VitalsSequence, load_demo_vitals
@@ -51,6 +57,8 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
     current_nemsis = NEMSISRecord()
     core_triggered = False
     gp_call_triggered = False
+    gp_call_completed = False
+    gp_doc_received = False
     extraction_lock = asyncio.Lock()
     last_extracted_word_count = 0
     extraction_task: asyncio.Task | None = None
@@ -67,6 +75,11 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
             await websocket.send_json(data)
         except Exception:
             logger.debug("WebSocket send failed (client may have disconnected)")
+
+    async def _publish_gp_data_status(status: str, message: str) -> None:
+        payload = {"type": "gp_data_status", "status": status, "message": message}
+        await _safe_send(payload)
+        await event_bus.publish(case_id, payload)
 
     async def _persist_and_emit_nemsis() -> None:
         nemsis_json = current_nemsis.model_dump_json()
@@ -101,6 +114,61 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
             "nemsis": nemsis_dict,
             "patient_name": patient_name,
         })
+
+    async def _schedule_gp_pending() -> None:
+        await asyncio.sleep(GP_CALL_PENDING_SECONDS)
+        if not gp_call_completed:
+            await _publish_gp_data_status("pending", "GP call in progress")
+
+    async def _deliver_gp_document() -> None:
+        nonlocal gp_doc_received
+        await asyncio.sleep(GP_DOCUMENT_DELAY_SECONDS)
+        if gp_doc_received:
+            return
+
+        raw_text, summary = load_gp_document_summary(GP_DOCUMENT_PATH)
+        if not raw_text:
+            await _publish_gp_data_status("failed", "GP document unavailable")
+            return
+
+        db_local = await get_db()
+        existing_row = await db_local.fetch_one(
+            "SELECT gp_response FROM cases WHERE id = ?",
+            (case_id,),
+        )
+        existing_text = (existing_row["gp_response"] or "") if existing_row else ""
+        combined = summary if not existing_text else f"{existing_text}\n\n{summary}"
+
+        await db_local.execute(
+            "UPDATE cases SET gp_response = ?, updated_at = ? WHERE id = ?",
+            (combined, datetime.now(UTC).isoformat(), case_id),
+        )
+        await db_local.commit()
+
+        gp_doc_received = True
+
+        await _publish_gp_data_status("received", "GP records received")
+
+        payload = {
+            "type": "gp_data_received",
+            "gp_response": combined,
+            "gp_document_summary": summary,
+            "source_path": str(GP_DOCUMENT_PATH),
+        }
+        await _safe_send(payload)
+        await event_bus.publish(case_id, payload)
+
+        async def _update_insights_from_gp_doc():
+            try:
+                insights = await update_case_insights(case_id)
+                await event_bus.publish(case_id, {
+                    "type": "clinical_insights",
+                    "insights": insights.model_dump(),
+                })
+            except Exception as exc:
+                logger.warning("Failed to update clinical insights: %s", exc)
+
+        asyncio.create_task(_update_insights_from_gp_doc())  # noqa: RUF006
 
     async def on_partial(text: str):
         nonlocal current_partial
@@ -247,8 +315,11 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                                 "message": "GP contact detected. Initiating GP voice call.",
                             }
                         )
+                        await _publish_gp_data_status("contacting", "Contacting GP...")
+                        asyncio.create_task(_schedule_gp_pending())  # noqa: RUF006
 
                         gp_response = await trigger_gp_call(current_nemsis, case_id)
+                        gp_call_completed = True
 
                         await db.execute(
                             "UPDATE cases SET gp_response = ?,"
@@ -267,6 +338,9 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                             "type": "gp_call_complete",
                             "gp_response": gp_response,
                         })
+
+                        await _publish_gp_data_status("waiting", "Waiting for GP records...")
+                        asyncio.create_task(_deliver_gp_document())  # noqa: RUF006
 
                         async def _update_insights_from_gp():
                             try:

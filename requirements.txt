@@ -10,6 +10,7 @@ python-dotenv==1.0.1
 pydantic>=2.10.4,<3
 httpx>=0.28.0
 twilio==9.10.1
+pypdf==4.2.0
 
 # Dev dependencies
 pytest==9.0.2
