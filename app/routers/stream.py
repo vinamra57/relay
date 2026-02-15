@@ -117,7 +117,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
         while not stop_extraction.is_set():
             # Wait for either: extract_now signal, max interval, or stop signal
             try:
-                done, pending = await asyncio.wait(
+                _done, pending = await asyncio.wait(
                     [
                         asyncio.create_task(extract_now.wait()),
                         asyncio.create_task(stop_extraction.wait()),
@@ -132,7 +132,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                         await task
                     except asyncio.CancelledError:
                         pass
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
             if stop_extraction.is_set():

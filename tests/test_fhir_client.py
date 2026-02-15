@@ -1,5 +1,4 @@
 """Tests for FHIR R4 client service - parsing and queries."""
-"""Tests for FHIR R4 client service - parsing and queries."""
 
 from app.services.fhir_client import (
     _extract_display,

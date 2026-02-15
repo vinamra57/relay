@@ -68,23 +68,24 @@ async def place_gp_call(
     prompt = (
         f"You are a hospital coordinator calling a GP practice on behalf of emergency services. "
         f"Be professional, calm, and concise.\n\n"
-        f"Your patient {patient_name} (date of birth: {patient_dob or 'unknown'}) is currently "
-        f"being transported by ambulance due to {situation}.\n\n"
-        f"Your goals:\n"
-        f"1. Introduce yourself as calling from the emergency coordination team.\n"
-        f"2. Tell them their patient {patient_name} is in an ambulance due to {situation}.\n"
-        f"3. Ask them to send the patient's medical records to {email}.\n"
-        f"4. Provide the callback number {callback} for any follow-up.\n"
-        f"5. Thank them and end the call.\n\n"
-        f"If you reach voicemail, leave a clear message with the patient name, situation, "
-        f"the email {email} for records, and the callback number {callback}.\n"
-        f"Keep it short — this is urgent."
+        f"SITUATION: Your patient {patient_name} (DOB: {patient_dob or 'unknown'}) is being "
+        f"transported by ambulance due to {situation}.\n\n"
+        f"You MUST communicate ALL of the following in your first response:\n"
+        f"1. You are from the emergency coordination team.\n"
+        f"2. Their patient {patient_name} is in an ambulance due to {situation}.\n"
+        f"3. Please send medical records to this email: {email}\n"
+        f"4. Our callback number is {callback}\n\n"
+        f"IMPORTANT: You must clearly state the email address {email} and the callback "
+        f"number {callback}. Spell out the email if needed. These are critical.\n\n"
+        f"If you reach voicemail, leave a message with: patient name, what happened, "
+        f"the email {email}, and callback number {callback}.\n"
+        f"After delivering the information, thank them and end the call."
     )
 
     first_message = (
-        f"Hello, this is the emergency coordination team. I'm calling about your patient "
-        f"{patient_name}, who is currently being transported by ambulance due to {situation}. "
-        f"We'd like to request their medical records — could you please send them to {email}?"
+        f"Hello, this is the emergency coordination team. Your patient {patient_name} is "
+        f"currently in an ambulance due to {situation}. We need their medical records sent to "
+        f"{email}. Our callback number is {callback}. Can you help with that?"
     )
 
     payload = {
