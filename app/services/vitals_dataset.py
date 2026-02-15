@@ -1,7 +1,6 @@
 import csv
 from pathlib import Path
 
-
 DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "vitals" / "bidmc_01_Numerics.csv"
 
 

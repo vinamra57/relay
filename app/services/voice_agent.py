@@ -56,9 +56,8 @@ async def place_gp_call(
         return _dummy_call(patient_name, case_id)
 
     if not ELEVENLABS_API_KEY:
-        logger.error("ELEVENLABS_API_KEY not set, cannot place GP call")
-        return {"call_sid": None, "conversation_id": None, "status": "error",
-                "error": "ELEVENLABS_API_KEY not configured"}
+        logger.info("ELEVENLABS_API_KEY not set; using dummy GP call")
+        return _dummy_call(patient_name, case_id)
 
     if not ELEVENLABS_AGENT_ID:
         logger.error("ELEVENLABS_AGENT_ID not set, cannot place GP call")

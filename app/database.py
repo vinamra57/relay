@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Iterable, Sequence
 from urllib.parse import urlparse
 
 import aiosqlite
@@ -75,7 +75,7 @@ class SQLiteAdapter(DatabaseAdapter):
 
 @dataclass
 class PostgresAdapter(DatabaseAdapter):
-    pool: "asyncpg.Pool"  # type: ignore[name-defined]
+    pool: asyncpg.Pool  # type: ignore[name-defined]
     engine: str = "postgres"
 
     @staticmethod

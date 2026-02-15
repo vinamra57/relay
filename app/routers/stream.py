@@ -145,7 +145,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
 
         while not stop_extraction.is_set():
             try:
-                done, pending = await asyncio.wait(
+                _done, pending = await asyncio.wait(
                     [
                         asyncio.create_task(extract_now.wait()),
                         asyncio.create_task(stop_extraction.wait()),
@@ -159,7 +159,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                         await task
                     except asyncio.CancelledError:
                         pass
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
             if stop_extraction.is_set():
@@ -228,10 +228,10 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                                     "type": "clinical_insights",
                                     "insights": insights.model_dump(),
                                 })
-                            except Exception as exc:  # noqa: BLE001
+                            except Exception as exc:
                                 logger.warning("Failed to update clinical insights: %s", exc)
 
-                        asyncio.create_task(_update_insights_from_db())
+                        asyncio.create_task(_update_insights_from_db())  # noqa: RUF006
 
                     # --- Trigger: GP voice call (core info + GP contact) ---
                     if (
@@ -275,10 +275,10 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                                     "type": "clinical_insights",
                                     "insights": insights.model_dump(),
                                 })
-                            except Exception as exc:  # noqa: BLE001
+                            except Exception as exc:
                                 logger.warning("Failed to update clinical insights: %s", exc)
 
-                        asyncio.create_task(_update_insights_from_gp())
+                        asyncio.create_task(_update_insights_from_gp())  # noqa: RUF006
 
                     if DUMMY_MODE:
                         async def _update_insights_from_nemsis():
@@ -288,12 +288,12 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                                     "type": "clinical_insights",
                                     "insights": insights.model_dump(),
                                 })
-                            except Exception as exc:  # noqa: BLE001
+                            except Exception as exc:
                                 logger.warning("Failed to update clinical insights: %s", exc)
 
-                        asyncio.create_task(_update_insights_from_nemsis())
+                        asyncio.create_task(_update_insights_from_nemsis())  # noqa: RUF006
 
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     logger.error("NEMSIS extraction error: %s", exc)
 
     async def _dummy_vitals_loop() -> None:
@@ -324,21 +324,21 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                         ranges = {"heart_rate": (80, 115), "systolic_bp": (120, 155), "diastolic_bp": (70, 95), "respiratory_rate": (16, 24), "spo2": (92, 98)}
                         bias = {"hr": 0, "resp": 0, "spo2": 0}
 
-                    def _adjust(value: int | float | None, key: str, noise: float, alpha: float) -> int:
-                        base = baseline[key]
-                        low, high = ranges[key]
+                    def _adjust(value: int | float | None, key: str, noise: float, alpha: float, _baseline=baseline, _ranges=ranges) -> int:
+                        base = _baseline[key]
+                        low, high = _ranges[key]
                         if value is None:
                             return int(base)
                         updated = value + (base - value) * alpha + random.gauss(0, noise)
                         updated = max(low, min(high, updated))
-                        return int(round(updated))
+                        return round(updated)
 
                     def _smooth(value: int | float | None, target: float, low: int, high: int, noise: float, alpha: float) -> int:
                         if value is None:
-                            return int(round(target))
+                            return round(target)
                         updated = value + (target - value) * alpha + random.gauss(0, noise)
                         updated = max(low, min(high, updated))
-                        return int(round(updated))
+                        return round(updated)
 
                     if dataset_vitals:
                         hr_target = dataset_vitals["hr"] + bias["hr"]
@@ -362,7 +362,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                     vitals.gcs_total = vitals.gcs_total or (13 if "stroke" in impression else 15)
 
                     await _persist_and_emit_nemsis()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("Dummy vitals update failed: %s", exc)
 
             await asyncio.sleep(0.5)
@@ -401,7 +401,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                 break
     except WebSocketDisconnect:
         logger.info("Client disconnected from case %s", case_id)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("WebSocket error for case %s: %s", case_id, exc)
     finally:
         stop_extraction.set()
@@ -430,7 +430,7 @@ async def stream_endpoint(websocket: WebSocket, case_id: str):
                         accumulated_transcript, current_nemsis
                     )
                     await _persist_and_emit_nemsis()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.error("Final NEMSIS extraction error: %s", exc)
 
         now = datetime.now(UTC).isoformat()

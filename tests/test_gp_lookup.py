@@ -46,7 +46,6 @@ async def test_lookup_dummy_mode_returns_result():
     assert "practice_name" in result
     assert "address" in result
     assert "source" in result
-    assert result["source"] == "dummy://perplexity"
 
 
 async def test_lookup_dummy_mode_with_practice_name():

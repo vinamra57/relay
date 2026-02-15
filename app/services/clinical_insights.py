@@ -57,7 +57,7 @@ async def _load_case_data(case_id: str) -> dict:
             (case_id,),
         )
     except Exception:
-        pass
+        logger.debug("Failed to load transcripts for case %s", case_id)
 
     return {
         "case_id": case_id,
@@ -261,7 +261,7 @@ async def _build_history_warnings(data: dict) -> list[str]:
         if parsed:
             return [w for w in parsed.warnings if isinstance(w, str)]
         return _dummy_history_warnings(data)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("History warnings generation failed: %s", exc)
         return _dummy_history_warnings(data)
 

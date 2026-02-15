@@ -44,12 +44,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def serve_paramedic_ui():
-    return FileResponse("static/index.html")
-
-
-@app.get("/demo")
-async def serve_enhanced_ui():
-    """Enhanced UI showing multi-source patient data aggregation complexity."""
     return FileResponse("static/index_enhanced.html")
 
 

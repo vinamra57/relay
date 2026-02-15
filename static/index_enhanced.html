@@ -209,10 +209,10 @@
                     <p class="hint">Name, Address, Age, Gender required to initiate lookup</p>
                 </div>
 
-                <!-- Data Sources Grid - Real FHIR/Synthea source only -->
+                <!-- Data Sources Grid -->
                 <div id="sourcesGrid" class="sources-grid" style="display: none;">
                     <div class="source-category">
-                        <h3>📊 FHIR Health Records</h3>
+                        <h3>Data Sources</h3>
                         <div class="source-item" id="sourceFHIR">
                             <div class="source-status waiting"></div>
                             <div class="source-info">
@@ -220,6 +220,14 @@
                                 <span class="source-desc">Conditions, Medications, Allergies, Immunizations, Procedures</span>
                             </div>
                             <div class="source-result" id="resultFHIR"></div>
+                        </div>
+                        <div class="source-item" id="sourceGP">
+                            <div class="source-status waiting"></div>
+                            <div class="source-info">
+                                <span class="source-name">GP Practice Call</span>
+                                <span class="source-desc">Outbound voice call to patient's GP for medical history</span>
+                            </div>
+                            <div class="source-result" id="resultGP"></div>
                         </div>
                     </div>
                 </div>
@@ -267,10 +275,19 @@
                     </div>
                 </div>
 
+                <!-- GP Call Transcript -->
+                <div id="gpCallSection" class="gp-call-section" style="display: none;">
+                    <div class="gp-call-header">
+                        <h3>GP Call Transcript</h3>
+                        <span class="gp-call-status" id="gpCallStatus">Connecting...</span>
+                    </div>
+                    <div class="gp-call-transcript" id="gpCallTranscript"></div>
+                </div>
+
                 <!-- Clinical Decision Support -->
                 <div id="clinicalAlerts" class="clinical-alerts" style="display: none;">
                     <div class="alert-header">
-                        <h3>🚨 Clinical Decision Support</h3>
+                        <h3>Clinical Decision Support</h3>
                     </div>
                     <div class="alerts-content" id="alertsContent">
                         <!-- Populated dynamically -->
@@ -289,6 +306,6 @@
         </div>
     </div>
 
-    <script src="/static/app_enhanced.js?v=6"></script>
+    <script src="/static/app_enhanced.js?v=7"></script>
 </body>
 </html>

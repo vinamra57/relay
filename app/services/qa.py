@@ -33,7 +33,7 @@ async def _load_case_data(case_id: str) -> dict:
             (case_id,),
         )
     except Exception:
-        pass
+        logger.debug("Failed to load transcripts for case %s", case_id)
 
     return {
         "nemsis": nemsis_data,

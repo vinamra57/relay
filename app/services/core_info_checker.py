@@ -1,10 +1,21 @@
 import logging
+import re
 
 from app.models.nemsis import NEMSISRecord
 from app.services.gp_caller import call_gp
 from app.services.medical_db import query_records
 
 logger = logging.getLogger(__name__)
+
+MIN_PHONE_DIGITS = 10  # Standard US phone number length
+
+
+def _has_valid_phone(phone: str | None) -> bool:
+    """Return True only if phone contains at least 10 digits."""
+    if not phone:
+        return False
+    digits = re.sub(r"[^\d]", "", phone)
+    return len(digits) >= MIN_PHONE_DIGITS
 
 
 def is_core_info_complete(record: NEMSISRecord) -> bool:
@@ -18,9 +29,13 @@ def is_core_info_complete(record: NEMSISRecord) -> bool:
 
 
 def is_gp_contact_available(record: NEMSISRecord) -> bool:
-    """Check if GP name or confirmed GP phone is available."""
+    """Check if GP name or confirmed GP phone is available.
+
+    For gp_phone, requires at least 10 digits to avoid triggering
+    a call on a partially-extracted phone number from streaming transcript.
+    """
     p = record.patient
-    return bool(p.gp_name or p.gp_phone)
+    return bool(p.gp_name or _has_valid_phone(p.gp_phone))
 
 
 def get_full_name(record: NEMSISRecord) -> str:

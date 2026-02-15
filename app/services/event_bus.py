@@ -100,7 +100,7 @@ class PubSubEventBus(CaseEventBus):
                     topic=self._topic_path,
                 )
             fallback_filter = None
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to create filtered subscription: %s", exc)
             self._subscriber.create_subscription(
                 name=sub_path,
@@ -147,7 +147,7 @@ class PubSubEventBus(CaseEventBus):
     def unsubscribe_all(self, queue: asyncio.Queue) -> None:
         self._unsubscribe(queue)
 
-    def unsubscribe(self, case_id: str, queue: asyncio.Queue) -> None:  # noqa: ARG002
+    def unsubscribe(self, case_id: str, queue: asyncio.Queue) -> None:
         self._unsubscribe(queue)
 
     def _unsubscribe(self, queue: asyncio.Queue) -> None:
@@ -158,10 +158,10 @@ class PubSubEventBus(CaseEventBus):
         try:
             future.cancel()
         except Exception:
-            pass
+            logger.debug("Failed to cancel subscription future")
         try:
             self._subscriber.delete_subscription(subscription=sub_path)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to delete subscription %s: %s", sub_path, exc)
 
     async def publish(self, case_id: str, event: dict) -> None:
@@ -173,7 +173,7 @@ class PubSubEventBus(CaseEventBus):
                 payload,
                 case_id=case_id,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("Failed to publish Pub/Sub event: %s", exc)
 
 

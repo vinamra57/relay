@@ -12,9 +12,10 @@ let coreInfoComplete = false;
 // Store fetched medical history
 let fetchedMedicalHistory = null;
 
-// Data source status tracking - FHIR/Synthea is the real source
+// Data source status tracking
 const dataSources = {
-    FHIR: { status: 'waiting', name: 'FHIR R4 / Synthea' }
+    FHIR: { status: 'waiting', name: 'FHIR R4 / Synthea' },
+    GP: { status: 'waiting', name: 'GP Practice Call' }
 };
 
 // --- Case Management ---
@@ -190,6 +191,9 @@ function handleServerMessage(msg) {
         case "medical_db_complete":
             handleMedicalDbComplete(msg.medical_db_response);
             break;
+        case "gp_call_triggered":
+            handleGpTriggered(msg.message);
+            break;
         case "gp_call_complete":
             handleGpComplete(msg.gp_response);
             break;
@@ -350,11 +354,8 @@ function onCoreInfoComplete() {
 }
 
 function startSourceLookup() {
-    const sources = ['FHIR', 'HIE', 'Particle', 'EHR', 'PDMP', 'Pharmacy', 'IIS', 'GP'];
-    sources.forEach((id) => setSourceStatus(id, 'waiting'));
     setSourceStatus('FHIR', 'querying');
-    setSourceStatus('GP', 'querying');
-    document.getElementById("sourcesStatus").textContent = "Querying Sources...";
+    document.getElementById("sourcesStatus").textContent = "Querying FHIR...";
 }
 
 function setSourceStatus(sourceId, status) {
@@ -604,29 +605,36 @@ function showHospitalBanner() {
     document.getElementById("bannerTime").textContent = new Date().toLocaleTimeString();
 }
 
-function showDownstream(gp, medDb) {
-    // This is called by the server when downstream lookups complete
-    // In the enhanced UI, this triggers the patient history display
-    console.log("Downstream complete:", gp, medDb);
-}
-
 function handleMedicalDbComplete(reportText) {
     setSourceStatus('FHIR', 'success');
     updateSourceResult('FHIR', 'History loaded');
     document.getElementById("sourcesStatus").textContent = "Medical history received";
     document.getElementById("patientHistory").style.display = "block";
     const parsed = parseMedicalDbReport(reportText || "");
+    fetchedMedicalHistory = parsed;
     showAggregatedHistory(parsed);
+    showClinicalAlerts(parsed);
     showHospitalBanner();
+}
+
+function handleGpTriggered(message) {
+    setSourceStatus('GP', 'querying');
+    updateSourceResult('GP', 'Calling GP...');
+    document.getElementById("gpCallSection").style.display = "block";
+    document.getElementById("gpCallStatus").textContent = "Calling...";
+    document.getElementById("gpCallStatus").className = "gp-call-status calling";
+    document.getElementById("gpCallTranscript").textContent = message || "Initiating GP voice call...";
 }
 
 function handleGpComplete(gpResponse) {
     setSourceStatus('GP', 'success');
-    updateSourceResult('GP', 'GP history received');
+    updateSourceResult('GP', 'Call complete');
+    document.getElementById("gpCallSection").style.display = "block";
+    document.getElementById("gpCallStatus").textContent = "Complete";
+    document.getElementById("gpCallStatus").className = "gp-call-status complete";
     if (gpResponse) {
-        document.getElementById("resultGP").textContent = "GP history received";
+        document.getElementById("gpCallTranscript").textContent = gpResponse;
     }
-    showHospitalBanner();
 }
 
 function parseMedicalDbReport(text) {
@@ -706,6 +714,7 @@ function clearUI() {
     document.getElementById("sourcesGrid").style.display = "none";
     document.getElementById("patientHistory").style.display = "none";
     document.getElementById("clinicalAlerts").style.display = "none";
+    document.getElementById("gpCallSection").style.display = "none";
     document.getElementById("hospitalBanner").style.display = "none";
     document.getElementById("sourcesStatus").textContent = "Waiting for Core ID";
     document.getElementById("sourcesStatus").classList.remove("active");

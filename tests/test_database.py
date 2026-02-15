@@ -5,10 +5,10 @@ import json
 
 async def test_init_creates_tables(db):
     """Test that init_db creates the expected tables."""
-    cursor = await db.execute(
+    rows = await db.fetch_all(
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
     )
-    tables = [row[0] for row in await cursor.fetchall()]
+    tables = [row[0] for row in rows]
     assert "cases" in tables
     assert "transcripts" in tables
 
@@ -21,8 +21,7 @@ async def test_insert_case(db):
     )
     await db.commit()
 
-    cursor = await db.execute("SELECT * FROM cases WHERE id = ?", ("test-case-1",))
-    row = await cursor.fetchone()
+    row = await db.fetch_one("SELECT * FROM cases WHERE id = ?", ("test-case-1",))
     assert row is not None
     assert row["id"] == "test-case-1"
     assert row["status"] == "active"
@@ -43,10 +42,9 @@ async def test_insert_transcript(db):
     )
     await db.commit()
 
-    cursor = await db.execute(
+    row = await db.fetch_one(
         "SELECT * FROM transcripts WHERE case_id = ?", ("test-case-2",)
     )
-    row = await cursor.fetchone()
     assert row is not None
     assert row["segment_text"] == "Patient has chest pain"
     assert row["segment_type"] == "committed"
@@ -61,10 +59,9 @@ async def test_update_nemsis_data(db):
     )
     await db.commit()
 
-    cursor = await db.execute(
+    row = await db.fetch_one(
         "SELECT nemsis_data FROM cases WHERE id = ?", ("test-case-3",)
     )
-    row = await cursor.fetchone()
     data = json.loads(row["nemsis_data"])
     assert data["patient"]["patient_name_first"] == "John"
 
@@ -77,8 +74,7 @@ async def test_case_defaults(db):
     )
     await db.commit()
 
-    cursor = await db.execute("SELECT * FROM cases WHERE id = ?", ("test-case-4",))
-    row = await cursor.fetchone()
+    row = await db.fetch_one("SELECT * FROM cases WHERE id = ?", ("test-case-4",))
     assert row["full_transcript"] == ""
     assert row["nemsis_data"] == "{}"
     assert row["core_info_complete"] == 0
@@ -103,8 +99,7 @@ async def test_multiple_transcript_segments(db):
         )
     await db.commit()
 
-    cursor = await db.execute(
+    row = await db.fetch_one(
         "SELECT COUNT(*) as cnt FROM transcripts WHERE case_id = ?", ("test-case-5",)
     )
-    row = await cursor.fetchone()
     assert row["cnt"] == 5

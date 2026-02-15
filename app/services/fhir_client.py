@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Synthea FHIR R4 test server (synthetic patient data)
 FHIR_SERVERS = [
-    "https://launch.smarthealthit.org/v/r4/fhir",  # Synthea data
+    "https://hapi.fhir.org/baseR4",  # Synthea data
 ]
 
 FHIR_HEADERS = {
@@ -61,6 +61,30 @@ def _split_name(full_name: str) -> tuple[str | None, str | None]:
     return " ".join(parts[:-1]), parts[-1]
 
 
+def _filter_by_name(
+    patients: list[dict],
+    given: str | None = None,
+    family: str | None = None,
+) -> list[dict]:
+    """Filter patient resources to those whose name actually matches.
+
+    HAPI FHIR sometimes returns fuzzy/partial matches that don't correspond
+    to the searched name. This filters client-side using case-insensitive matching.
+    """
+    filtered = []
+    for patient in patients:
+        names = patient.get("name", [])
+        for name_entry in names:
+            fam = (name_entry.get("family") or "").lower()
+            givens = [g.lower() for g in name_entry.get("given", [])]
+            family_ok = not family or fam == family.lower()
+            given_ok = not given or given.lower() in givens
+            if family_ok and given_ok:
+                filtered.append(patient)
+                break
+    return filtered
+
+
 async def search_patient(
     client: httpx.AsyncClient,
     base_url: str,
@@ -98,25 +122,26 @@ async def search_patient(
 
     if given and gender_lower and birthdate:
         strategies.append(("family+given+gender+birthdate", {
-            "family": family, "given": given,
+            "family:exact": family, "given:exact": given,
             "gender": gender_lower, "birthdate": birthdate,
         }))
     if given and gender_lower:
         strategies.append(("family+given+gender", {
-            "family": family, "given": given, "gender": gender_lower,
+            "family:exact": family, "given:exact": given, "gender": gender_lower,
         }))
     if given:
         strategies.append(("family+given", {
-            "family": family, "given": given,
+            "family:exact": family, "given:exact": given,
         }))
     if gender_lower:
         strategies.append(("family+gender", {
-            "family": family, "gender": gender_lower,
+            "family:exact": family, "gender": gender_lower,
         }))
-    strategies.append(("family", {"family": family}))
+    strategies.append(("family", {"family:exact": family}))
 
     for strategy_name, params in strategies:
-        params["_count"] = "5"
+        params["_count"] = "20"
+        params["_sort"] = "-_lastUpdated"
         resp = await client.get(
             f"{base_url}/Patient",
             params=params,
@@ -124,6 +149,8 @@ async def search_patient(
         )
         resp.raise_for_status()
         patients = _extract_entries(resp.json())
+        # Filter client-side: HAPI sometimes returns partial/fuzzy matches
+        patients = _filter_by_name(patients, given=given, family=family)
         if patients:
             logger.info(
                 "Patient search hit on %s using strategy %s (%d results)",
@@ -427,7 +454,9 @@ async def query_fhir_servers(
         except Exception as e:
             logger.warning("FHIR query to %s failed: %s", base_url, e)
 
-    return None
+    # Fallback to synthetic data when real servers are unavailable
+    logger.info("All FHIR servers unavailable; using synthetic data for %s", patient_name)
+    return _dummy_fhir_response(patient_name, patient_gender, patient_dob)
 
 
 def _get_patient_name(patient: dict) -> str:

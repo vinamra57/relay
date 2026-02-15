@@ -749,6 +749,56 @@ body {
     border: 1px solid var(--accent-purple);
 }
 
+/* GP Call Section */
+.gp-call-section {
+    margin-top: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.gp-call-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.gp-call-header h3 {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.gp-call-status {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.gp-call-status.calling {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--accent-blue);
+    animation: pulse-bg 1.5s ease-in-out infinite;
+}
+
+.gp-call-status.complete {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-green);
+}
+
+.gp-call-transcript {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
 /* Clinical Alerts */
 .clinical-alerts {
     margin-top: 16px;
