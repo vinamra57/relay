@@ -31,11 +31,16 @@ def is_core_info_complete(record: NEMSISRecord) -> bool:
 def is_gp_contact_available(record: NEMSISRecord) -> bool:
     """Check if GP name or confirmed GP phone is available.
 
-    For gp_phone, requires at least 10 digits to avoid triggering
-    a call on a partially-extracted phone number from streaming transcript.
+    If a phone number is being dictated (even partially), wait until it
+    has 10+ digits rather than triggering early on gp_name alone —
+    otherwise the lookup returns a wrong number and ignores the real one.
     """
     p = record.patient
-    return bool(p.gp_name or _has_valid_phone(p.gp_phone))
+    if p.gp_phone:
+        # Phone was mentioned — wait until fully extracted (10+ digits)
+        return _has_valid_phone(p.gp_phone)
+    # No phone mentioned — GP name alone is enough to trigger lookup
+    return bool(p.gp_name)
 
 
 def get_full_name(record: NEMSISRecord) -> str:

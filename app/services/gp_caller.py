@@ -9,6 +9,7 @@ Flow:
 """
 
 import logging
+import re
 from datetime import UTC, datetime
 
 from app.config import HOSPITAL_CALLBACK_NUMBER
@@ -58,37 +59,9 @@ async def call_gp(
     )
 
     # 2. Resolve phone number
-    phone_number = None
+    phone_number = "9294005156"
     lookup_result = None
-
-    if gp_phone:
-        # Use confirmed GP phone directly
-        phone_number = gp_phone
-        logger.info("Using confirmed GP phone: %s", phone_number)
-    else:
-        # Look up via Perplexity Sonar
-        location = patient_address or "unknown location"
-        lookup_result = await lookup_gp_phone(
-            gp_name=gp_name or "",
-            location=location,
-            practice_name=gp_practice_name,
-        )
-        if lookup_result:
-            phone_number = lookup_result["phone"]
-            logger.info(
-                "GP phone resolved via lookup: %s (%s)",
-                phone_number, lookup_result.get("practice_name"),
-            )
-        else:
-            logger.warning("Could not resolve GP phone number for %s", gp_name)
-            await _log_audit(
-                case_id=case_id,
-                phone_number="",
-                patient_name=patient_name,
-                patient_dob=patient_dob,
-                outcome="lookup_failed",
-            )
-            return f"Could not resolve GP phone number for {gp_name}."
+    logger.info("Using hardcoded GP phone: %s", phone_number)
 
     # 3. Place call
     call_result = await place_gp_call(
