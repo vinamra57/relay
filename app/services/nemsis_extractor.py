@@ -1,19 +1,11 @@
 import json
 import logging
-import re
 
-from anthropic import AsyncAnthropic
-
-from app.config import ANTHROPIC_API_KEY
 from app.models.nemsis import NEMSISRecord
+from app.services.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
-try:
-    client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
-except Exception as e:
-    logger.warning("Anthropic client init failed (NEMSIS extraction will be skipped): %s", e)
-    client = None
 
 SYSTEM_PROMPT = """You are an EMS data extraction AI specialized in NEMSIS v3.5-compliant ePCR (Electronic Patient Care Report) fields.
 
@@ -51,8 +43,9 @@ def _json_schema_prompt() -> str:
 
 
 async def extract_nemsis(transcript: str, existing: NEMSISRecord | None = None) -> NEMSISRecord:
-    """Extract NEMSIS-compliant data from transcript using Claude (raw text to table)."""
-    if not client:
+    """Extract NEMSIS-compliant data from transcript using configured LLM."""
+    client = get_llm_client()
+    if not client.available():
         return existing or NEMSISRecord()
 
     context = ""
@@ -66,25 +59,12 @@ async def extract_nemsis(transcript: str, existing: NEMSISRecord | None = None) 
     )
 
     try:
-        message = await client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=4096,
+        extracted = await client.generate_json(
             system=SYSTEM_PROMPT + "\n" + _json_schema_prompt(),
-            messages=[{"role": "user", "content": user_content}],
+            user=user_content,
+            response_model=NEMSISRecord,
+            max_tokens=4096,
         )
-
-        raw = ""
-        for block in message.content:
-            if hasattr(block, "text"):
-                raw += block.text
-
-        # Strip optional markdown code fence
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-
-        extracted = NEMSISRecord.model_validate_json(raw)
 
         if existing:
             extracted = _merge_records(existing, extracted)

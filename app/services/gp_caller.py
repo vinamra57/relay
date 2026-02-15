@@ -135,6 +135,8 @@ async def call_gp(
             f"[DUMMY] GP call placed to {phone_number} for {patient_name}. "
             f"{call_result.get('transcript', '')}"
         )
+    elif outcome == "skipped":
+        return "GP call skipped (disabled by configuration)."
     elif outcome == "initiated":
         return (
             f"GP call initiated to {phone_number} for {patient_name}. "

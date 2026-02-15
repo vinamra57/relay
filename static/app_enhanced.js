@@ -191,8 +191,11 @@ function handleServerMessage(msg) {
         case "core_info_complete":
             onCoreInfoComplete();
             break;
-        case "downstream_complete":
-            showDownstream(msg.gp_response, msg.medical_db_response);
+        case "medical_db_complete":
+            handleMedicalDbComplete(msg.medical_db_response);
+            break;
+        case "gp_call_complete":
+            handleGpComplete(msg.gp_response);
             break;
         case "error":
             console.error("Server error:", msg.message);
@@ -347,47 +350,16 @@ function onCoreInfoComplete() {
     document.getElementById("sourcesStatus").textContent = "Querying Sources...";
     document.getElementById("sourcesStatus").classList.add("active");
 
-    // Start querying all sources with staggered timing for visual effect
-    startMultiSourceLookup();
+    // Start querying sources (real backend will notify when done)
+    startSourceLookup();
 }
 
-async function startMultiSourceLookup() {
-    // Define query order and timing (simulates real-world latency differences)
-    const querySequence = [
-        { id: 'FHIR', delay: 200, duration: 1500 },
-        { id: 'HIE', delay: 400, duration: 2500 },
-        { id: 'Particle', delay: 600, duration: 3000 },
-        { id: 'EHR', delay: 800, duration: 2800 },
-        { id: 'PDMP', delay: 1000, duration: 2000 },
-        { id: 'Pharmacy', delay: 1200, duration: 3500 },
-        { id: 'IIS', delay: 1400, duration: 1800 },
-        { id: 'GP', delay: 1600, duration: 4000 }
-    ];
-
-    // Start all queries
-    for (const source of querySequence) {
-        setTimeout(() => {
-            setSourceStatus(source.id, 'querying');
-        }, source.delay);
-
-        setTimeout(() => {
-            // Simulate success/failure (FHIR always succeeds since we have it)
-            const success = source.id === 'FHIR' ? true : Math.random() > 0.3;
-            setSourceStatus(source.id, success ? 'success' : 'failed');
-            
-            if (success) {
-                updateSourceResult(source.id);
-            }
-        }, source.delay + source.duration);
-    }
-
-    // After all sources complete, show aggregated results
-    setTimeout(() => {
-        document.getElementById("sourcesStatus").textContent = "Lookup Complete";
-        showAggregatedHistory();
-        showClinicalAlerts();
-        showHospitalBanner();
-    }, 5500);
+function startSourceLookup() {
+    const sources = ['FHIR', 'HIE', 'Particle', 'EHR', 'PDMP', 'Pharmacy', 'IIS', 'GP'];
+    sources.forEach((id) => setSourceStatus(id, 'waiting'));
+    setSourceStatus('FHIR', 'querying');
+    setSourceStatus('GP', 'querying');
+    document.getElementById("sourcesStatus").textContent = "Querying Sources...";
 }
 
 function setSourceStatus(sourceId, status) {
@@ -404,7 +376,7 @@ function setSourceStatus(sourceId, status) {
     }
 }
 
-function updateSourceResult(sourceId) {
+function updateSourceResult(sourceId, overrideText) {
     const resultEl = document.getElementById(`result${sourceId}`);
     if (!resultEl) return;
 
@@ -419,54 +391,53 @@ function updateSourceResult(sourceId) {
         GP: 'History received'
     };
 
-    resultEl.textContent = results[sourceId] || 'Data found';
+    resultEl.textContent = overrideText || results[sourceId] || 'Data found';
 }
 
 // --- Show Aggregated Patient History ---
 
-function showAggregatedHistory() {
+function showAggregatedHistory(history) {
     // Count successful sources
     const successCount = Object.values(dataSources).filter(s => s.status === 'success').length;
     document.getElementById("sourceCount").textContent = successCount;
 
-    // Demo patient history data (would come from real API)
-    const history = {
-        allergies: ['Penicillin (SEVERE)', 'Sulfonamides', 'Iodine contrast'],
-        medications: ['Metformin 500mg', 'Lisinopril 10mg', 'Atorvastatin 20mg', 'Aspirin 81mg'],
-        conditions: ['Diabetes Mellitus Type 2', 'Essential Hypertension', 'Hyperlipidemia', 'Chronic Kidney Disease Stage 2'],
-        immunizations: ['Influenza (2025-09)', 'COVID-19 (2024-10)', 'Td (2023-06)'],
-        procedures: ['Colonoscopy (2024-03)', 'Echocardiogram (2024-01)']
+    const data = history || {
+        allergies: [],
+        medications: [],
+        conditions: [],
+        immunizations: [],
+        procedures: []
     };
 
     // Populate allergies
     const allergiesEl = document.getElementById("historyAllergies");
-    allergiesEl.innerHTML = history.allergies.map(a => 
-        `<span class="history-item allergy">${escapeHtml(a)}</span>`
-    ).join('');
+    allergiesEl.innerHTML = data.allergies.length
+        ? data.allergies.map(a => `<span class="history-item allergy">${escapeHtml(a)}</span>`).join('')
+        : '<span class="no-data">No allergies found</span>';
 
     // Populate medications
     const medsEl = document.getElementById("historyMedications");
-    medsEl.innerHTML = history.medications.map(m => 
-        `<span class="history-item medication">${escapeHtml(m)}</span>`
-    ).join('');
+    medsEl.innerHTML = data.medications.length
+        ? data.medications.map(m => `<span class="history-item medication">${escapeHtml(m)}</span>`).join('')
+        : '<span class="no-data">No medications found</span>';
 
     // Populate conditions
     const conditionsEl = document.getElementById("historyConditions");
-    conditionsEl.innerHTML = history.conditions.map(c => 
-        `<span class="history-item condition">${escapeHtml(c)}</span>`
-    ).join('');
+    conditionsEl.innerHTML = data.conditions.length
+        ? data.conditions.map(c => `<span class="history-item condition">${escapeHtml(c)}</span>`).join('')
+        : '<span class="no-data">No conditions found</span>';
 
     // Populate immunizations
     const immuneEl = document.getElementById("historyImmunizations");
-    immuneEl.innerHTML = history.immunizations.map(i => 
-        `<span class="history-item">${escapeHtml(i)}</span>`
-    ).join('');
+    immuneEl.innerHTML = data.immunizations.length
+        ? data.immunizations.map(i => `<span class="history-item">${escapeHtml(i)}</span>`).join('')
+        : '<span class="no-data">No immunizations found</span>';
 
     // Populate procedures
     const procEl = document.getElementById("historyProcedures");
-    procEl.innerHTML = history.procedures.map(p => 
-        `<span class="history-item">${escapeHtml(p)}</span>`
-    ).join('');
+    procEl.innerHTML = data.procedures.length
+        ? data.procedures.map(p => `<span class="history-item">${escapeHtml(p)}</span>`).join('')
+        : '<span class="no-data">No procedures found</span>';
 }
 
 function showClinicalAlerts() {
@@ -500,6 +471,50 @@ function showDownstream(gp, medDb) {
     // This is called by the server when downstream lookups complete
     // In the enhanced UI, this triggers the patient history display
     console.log("Downstream complete:", gp, medDb);
+}
+
+function handleMedicalDbComplete(reportText) {
+    setSourceStatus('FHIR', 'success');
+    updateSourceResult('FHIR', 'History loaded');
+    document.getElementById("sourcesStatus").textContent = "Medical history received";
+    document.getElementById("patientHistory").style.display = "block";
+    const parsed = parseMedicalDbReport(reportText || "");
+    showAggregatedHistory(parsed);
+    showHospitalBanner();
+}
+
+function handleGpComplete(gpResponse) {
+    setSourceStatus('GP', 'success');
+    updateSourceResult('GP', 'GP history received');
+    if (gpResponse) {
+        document.getElementById("resultGP").textContent = "GP history received";
+    }
+    showHospitalBanner();
+}
+
+function parseMedicalDbReport(text) {
+    const lines = text.split("\n");
+    const sections = {
+        conditions: [],
+        allergies: [],
+        medications: [],
+        immunizations: [],
+        procedures: [],
+    };
+    let current = "";
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.includes("CONDITIONS / MEDICAL HISTORY")) current = "conditions";
+        else if (trimmed.includes("ALLERGIES")) current = "allergies";
+        else if (trimmed.includes("CURRENT MEDICATIONS")) current = "medications";
+        else if (trimmed.includes("IMMUNIZATION HISTORY")) current = "immunizations";
+        else if (trimmed.includes("PAST PROCEDURES")) current = "procedures";
+        else if (trimmed.startsWith("*") || trimmed.startsWith("-") || trimmed.startsWith("!!")) {
+            const value = trimmed.replace(/^(\*|-|!!)\s*/, "");
+            if (current && value) sections[current].push(value);
+        }
+    }
+    return sections;
 }
 
 // --- UI State ---

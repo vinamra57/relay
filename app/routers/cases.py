@@ -44,10 +44,9 @@ async def create_case(body: CaseCreate):
 async def list_cases():
     """List all cases."""
     db = await get_db()
-    rows = await db.execute(
+    cases = await db.fetch_all(
         "SELECT id, created_at, status, patient_name, core_info_complete, nemsis_data FROM cases ORDER BY created_at DESC"
     )
-    cases = await rows.fetchall()
     result = []
     for row in cases:
         chief = None
@@ -71,8 +70,7 @@ async def list_cases():
 async def get_case(case_id: str):
     """Get a single case with full details."""
     db = await get_db()
-    row = await db.execute("SELECT * FROM cases WHERE id = ?", (case_id,))
-    case = await row.fetchone()
+    case = await db.fetch_one("SELECT * FROM cases WHERE id = ?", (case_id,))
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -104,8 +102,7 @@ async def get_case(case_id: str):
 async def get_case_nemsis(case_id: str):
     """Get just the NEMSIS data for a case."""
     db = await get_db()
-    row = await db.execute("SELECT nemsis_data FROM cases WHERE id = ?", (case_id,))
-    case = await row.fetchone()
+    case = await db.fetch_one("SELECT nemsis_data FROM cases WHERE id = ?", (case_id,))
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -121,15 +118,14 @@ async def get_case_transcripts(case_id: str):
     db = await get_db()
 
     # Verify case exists
-    row = await db.execute("SELECT id FROM cases WHERE id = ?", (case_id,))
-    if not await row.fetchone():
+    case = await db.fetch_one("SELECT id FROM cases WHERE id = ?", (case_id,))
+    if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    rows = await db.execute(
+    segments = list(await db.fetch_all(
         "SELECT * FROM transcripts WHERE case_id = ? ORDER BY created_at ASC",
         (case_id,),
-    )
-    segments = list(await rows.fetchall())
+    ))
 
     return TranscriptResponse(
         segments=[
@@ -151,8 +147,8 @@ async def get_case_transcripts(case_id: str):
 async def update_case_status(case_id: str, body: CaseStatusUpdate):
     """Update case status."""
     db = await get_db()
-    row = await db.execute("SELECT id FROM cases WHERE id = ?", (case_id,))
-    if not await row.fetchone():
+    case = await db.fetch_one("SELECT id FROM cases WHERE id = ?", (case_id,))
+    if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
     now = datetime.now(timezone.utc).isoformat()

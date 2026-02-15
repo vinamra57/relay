@@ -1,0 +1,9 @@
+<svg width="900" height="600" viewBox="0 0 900 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="600" rx="24" fill="#0f172a"/>
+  <rect x="60" y="80" width="780" height="400" rx="18" fill="#111827" stroke="#1f2937" stroke-width="3"/>
+  <circle cx="230" cy="260" r="80" fill="#1f2937"/>
+  <rect x="360" y="210" width="360" height="160" rx="16" fill="#1f2937"/>
+  <path d="M460 260 H520 V320 H580 V260 H640" stroke="#ff6b35" stroke-width="12" stroke-linecap="round"/>
+  <text x="60" y="40" font-family="Space Grotesk, sans-serif" font-size="20" fill="#e2e8f0">Scene Photo (Demo)</text>
+  <text x="60" y="560" font-family="IBM Plex Mono, monospace" font-size="12" fill="#64748b">Source: GP transmission</text>
+</svg>

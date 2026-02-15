@@ -1,0 +1,7 @@
+<svg width="900" height="240" viewBox="0 0 900 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="240" rx="18" fill="#0f172a"/>
+  <path d="M0 120 H80 L100 90 L120 150 L140 80 L160 120 H240 L260 115 L280 125 L300 120 H380 L400 90 L420 150 L440 80 L460 120 H540 L560 115 L580 125 L600 120 H680 L700 90 L720 150 L740 80 L760 120 H900" stroke="#ff6b35" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M0 120 H900" stroke="#1f2937" stroke-width="2" stroke-dasharray="6 10"/>
+  <text x="28" y="36" font-family="Space Grotesk, sans-serif" font-size="18" fill="#e2e8f0">12-Lead ECG (Demo)</text>
+  <text x="28" y="210" font-family="IBM Plex Mono, monospace" font-size="12" fill="#64748b">Source: GP transmission</text>
+</svg>

@@ -5,6 +5,7 @@ let mediaStream = null;
 let audioContext = null;
 let processorNode = null;
 let segmentCount = 0;
+let downstreamState = { gp: null, medDb: null };
 
 // --- Case Management ---
 
@@ -158,6 +159,14 @@ function handleServerMessage(msg) {
             break;
         case "core_info_complete":
             onCoreInfoComplete();
+            break;
+        case "medical_db_complete":
+            downstreamState.medDb = msg.medical_db_response;
+            showDownstream(downstreamState.gp, downstreamState.medDb);
+            break;
+        case "gp_call_complete":
+            downstreamState.gp = msg.gp_response;
+            showDownstream(downstreamState.gp, downstreamState.medDb);
             break;
         case "downstream_complete":
             showDownstream(msg.gp_response, msg.medical_db_response);

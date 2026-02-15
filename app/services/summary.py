@@ -1,20 +1,12 @@
 import json
 import logging
-import re
 
-from anthropic import AsyncAnthropic
-
-from app.config import ANTHROPIC_API_KEY
 from app.database import get_db
 from app.models.summary import CaseSummary, HospitalSummary
+from app.services.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
-try:
-    client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
-except Exception as e:
-    logger.warning("Anthropic client init failed (summary will be disabled): %s", e)
-    client = None
 
 CASE_SUMMARY_PROMPT = """You are a clinical summarization AI for emergency medical services.
 
@@ -55,8 +47,7 @@ No markdown, no explanation."""
 async def _load_case_data(case_id: str) -> dict:
     """Load all case data from the database for summary generation."""
     db = await get_db()
-    row = await db.execute("SELECT * FROM cases WHERE id = ?", (case_id,))
-    case = await row.fetchone()
+    case = await db.fetch_one("SELECT * FROM cases WHERE id = ?", (case_id,))
     if not case:
         raise ValueError(f"Case {case_id} not found")
 
@@ -76,15 +67,6 @@ async def _load_case_data(case_id: str) -> dict:
         "gp_response": case["gp_response"] or "",
         "medical_db_response": case["medical_db_response"] or "",
     }
-
-
-def _extract_json_from_response(raw: str) -> str:
-    """Strip markdown code fence if present and return JSON string."""
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-    return raw
 
 
 def _empty_case_summary() -> CaseSummary:
@@ -115,11 +97,8 @@ def _empty_hospital_summary() -> HospitalSummary:
 
 
 async def generate_summary(case_id: str, urgency: str = "standard") -> CaseSummary:
-    """Generate a case summary using Claude."""
+    """Generate a case summary using configured LLM provider."""
     data = await _load_case_data(case_id)
-
-    if not client:
-        return _empty_case_summary()
 
     user_content = (
         f"Urgency context: {urgency}\n\n"
@@ -130,29 +109,23 @@ async def generate_summary(case_id: str, urgency: str = "standard") -> CaseSumma
     )
 
     try:
-        message = await client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=2048,
+        client = get_llm_client()
+        if not client.available():
+            return _empty_case_summary()
+        return await client.generate_json(
             system=CASE_SUMMARY_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
+            user=user_content,
+            response_model=CaseSummary,
+            max_tokens=2048,
         )
-        raw = ""
-        for block in message.content:
-            if hasattr(block, "text"):
-                raw += block.text
-        raw = _extract_json_from_response(raw)
-        return CaseSummary.model_validate_json(raw)
     except Exception as e:
         logger.error("Case summary generation failed for %s: %s", case_id, e)
         return _empty_case_summary()
 
 
 async def get_summary_for_hospital(case_id: str) -> HospitalSummary:
-    """Generate a hospital preparation summary using Claude."""
+    """Generate a hospital preparation summary using configured LLM provider."""
     data = await _load_case_data(case_id)
-
-    if not client:
-        return _empty_hospital_summary()
 
     user_content = (
         f"Transcript:\n{data['transcript']}\n\n"
@@ -162,18 +135,15 @@ async def get_summary_for_hospital(case_id: str) -> HospitalSummary:
     )
 
     try:
-        message = await client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=2048,
+        client = get_llm_client()
+        if not client.available():
+            return _empty_hospital_summary()
+        return await client.generate_json(
             system=HOSPITAL_SUMMARY_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
+            user=user_content,
+            response_model=HospitalSummary,
+            max_tokens=2048,
         )
-        raw = ""
-        for block in message.content:
-            if hasattr(block, "text"):
-                raw += block.text
-        raw = _extract_json_from_response(raw)
-        return HospitalSummary.model_validate_json(raw)
     except Exception as e:
         logger.error("Hospital summary generation failed for %s: %s", case_id, e)
         return _empty_hospital_summary()

@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["ELEVENLABS_API_KEY"] = ""
 os.environ["DATABASE_PATH"] = ":memory:"
+os.environ["SEED_DEMO_CASES"] = "false"
 
 from app.database import close_db, get_db, init_db
 from app.main import app

@@ -4,12 +4,16 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
-from app.database import get_db
+from app.database import ensure_demo_cases, get_db
+from app.models.clinical import AskRequest, AskResponse, ClinicalInsights
 from app.models.medical_history import MedicalHistoryReport
 from app.models.summary import CaseSummary, HospitalSummary
+from app.services.clinical_insights import get_cached_insights
 from app.services.event_bus import event_bus
 from app.services.medical_db import build_medical_history_report
+from app.services.qa import answer_question
 from app.services.summary import generate_summary, get_summary_for_hospital
+from app.services.transcription import TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +62,10 @@ async def get_medical_history(case_id: str):
     Requires core patient info (name, age, gender) to be available.
     """
     db = await get_db()
-    row = await db.execute(
+    case = await db.fetch_one(
         "SELECT patient_name, patient_age, patient_gender, nemsis_data FROM cases WHERE id = ?",
         (case_id,),
     )
-    case = await row.fetchone()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found") from None
 
@@ -86,18 +89,39 @@ async def get_medical_history(case_id: str):
     )
 
 
+@router.get("/clinical-insights/{case_id}", response_model=ClinicalInsights)
+async def get_clinical_insights(case_id: str):
+    """Get clinical insights for the hospital dashboard."""
+    try:
+        return await get_cached_insights(case_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Case not found") from None
+
+
+@router.post("/ask", response_model=AskResponse)
+async def ask_question(payload: AskRequest):
+    """Answer clinician questions about a case."""
+    try:
+        return await answer_question(payload.case_id, payload.question)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Case not found") from None
+
+
 @router.get("/active-cases")
 async def get_active_cases():
     """Get all active cases with their current NEMSIS data for the dashboard."""
     db = await get_db()
-    rows = await db.execute(
+    await ensure_demo_cases(db)
+    cases = await db.fetch_all(
         "SELECT id, created_at, status, patient_name, patient_age, patient_gender, "
         "nemsis_data, core_info_complete, gp_response, medical_db_response "
         "FROM cases WHERE status = 'active' ORDER BY created_at DESC"
     )
-    cases = await rows.fetchall()
     result = []
+    has_real_case = any(row["id"] and not row["id"].startswith("demo-") for row in cases)
     for row in cases:
+        if not has_real_case and row["id"].startswith("demo-"):
+            continue
         nemsis: dict = {}
         try:
             nemsis = json.loads(row["nemsis_data"] or "{}")
@@ -120,7 +144,7 @@ async def hospital_dashboard_ws(websocket: WebSocket):
     """WebSocket for real-time hospital dashboard updates.
 
     Hospital staff connects here to receive live updates about all active cases.
-    Events include: nemsis_update, downstream_complete.
+    Events include: nemsis_update, medical_db_complete, gp_call_complete.
     """
     await websocket.accept()
     queue = event_bus.subscribe_all()
@@ -140,3 +164,68 @@ async def hospital_dashboard_ws(websocket: WebSocket):
         pass
     finally:
         event_bus.unsubscribe_all(queue)
+
+
+@router.websocket("/ws/ask/{case_id}")
+async def hospital_voice_qa_ws(websocket: WebSocket, case_id: str):
+    """WebSocket for voice Q/A using ElevenLabs Scribe realtime."""
+    await websocket.accept()
+    db = await get_db()
+    case = await db.fetch_one("SELECT id FROM cases WHERE id = ?", (case_id,))
+    if not case:
+        await websocket.send_json({"type": "error", "message": "Case not found"})
+        await websocket.close()
+        return
+
+    accumulated = ""
+    last_partial = ""
+
+    async def on_partial(text: str):
+        nonlocal last_partial
+        last_partial = text
+        await websocket.send_json({"type": "question_partial", "text": text})
+
+    async def on_committed(text: str):
+        nonlocal accumulated
+        accumulated = f"{accumulated} {text}".strip() if accumulated else text
+        await websocket.send_json({"type": "question_committed", "text": text})
+
+    stt = TranscriptionService(
+        on_partial=on_partial,
+        on_committed=on_committed,
+        dummy_segments=[
+            "What medications were given en route",
+            "Any known allergies or contraindications",
+        ],
+    )
+    await stt.start()
+
+    try:
+        while True:
+            msg = await websocket.receive_json()
+            msg_type = msg.get("type")
+            if msg_type == "audio_chunk":
+                await stt.send_audio(msg.get("data", ""))
+            elif msg_type == "text":
+                accumulated = msg.get("text", "")
+                break
+            elif msg_type == "end":
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await stt.stop()
+
+    question = accumulated or last_partial
+    if not question:
+        await websocket.send_json({"type": "answer", "answer": AskResponse(answer="No question captured.").model_dump()})
+        await websocket.close()
+        return
+
+    answer = await answer_question(case_id, question)
+    await websocket.send_json({
+        "type": "answer",
+        "question": question,
+        "answer": answer.model_dump(),
+    })
+    await websocket.close()

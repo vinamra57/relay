@@ -3,184 +3,413 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aria Health - Hospital Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <style>
-        .dashboard-container {
-            display: grid;
-            grid-template-columns: 320px 1fr;
-            gap: 16px;
-            padding: 16px;
-            height: calc(100vh - 60px);
-        }
-        .case-list { overflow-y: auto; }
-        .case-card {
-            padding: 12px;
-            background: #1a1f2e;
-            border: 1px solid #2a3042;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: border-color 0.2s;
-        }
-        .case-card:hover { border-color: #c0392b; }
-        .case-card.selected { border-color: #c0392b; background: #1e2435; }
-        .case-card .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-        .case-card .card-name {
-            font-weight: 600;
-            font-size: 14px;
-        }
-        .case-card .card-id {
-            font-size: 11px;
-            color: #5a6578;
-            font-family: monospace;
-        }
-        .case-card .card-info {
-            font-size: 12px;
-            color: #8892a8;
-        }
-        .priority-badge {
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-        .priority-critical { background: #c0392b; color: #fff; }
-        .priority-high { background: #e67e22; color: #fff; }
-        .priority-moderate { background: #2980b9; color: #fff; }
-        .priority-low { background: #27ae60; color: #fff; }
-        .detail-area {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            gap: 12px;
-            overflow: hidden;
-        }
-        .detail-panel {
-            background: #141822;
-            border: 1px solid #2a3042;
-            border-radius: 8px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        .detail-panel .panel-header {
-            padding: 10px 14px;
-            border-bottom: 1px solid #2a3042;
-            font-size: 12px;
-            font-weight: 600;
-            color: #8892a8;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .detail-panel .panel-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 12px 14px;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-        .vitals-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-        }
-        .vital-item {
-            background: #1a1f2e;
-            border-radius: 6px;
-            padding: 8px;
-            text-align: center;
-        }
-        .vital-item .vital-label {
-            font-size: 10px;
-            color: #5a6578;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-        .vital-item .vital-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #e0e6f0;
-        }
-        .vital-item .vital-value.abnormal { color: #e74c3c; }
-        .vital-item .vital-value.normal { color: #2ecc71; }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            border-bottom: 1px solid #1a1f2e;
-        }
-        .info-row .info-label { color: #5a6578; }
-        .info-row .info-value { color: #e0e6f0; font-weight: 500; }
-        .tag-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-        .tag {
-            padding: 2px 8px;
-            background: #2a3042;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #e0e6f0;
-        }
-        .tag.allergy { background: #8e44ad; }
-        .no-selection {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: #3a4052;
-            font-size: 16px;
-        }
-        .no-cases {
-            text-align: center;
-            padding: 40px 16px;
-            color: #3a4052;
-        }
-        .live-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #2ecc71;
-            margin-right: 6px;
-            animation: pulse 1.5s infinite;
-        }
-        .ws-status {
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .ws-status.connected { color: #2ecc71; }
-        .ws-status.disconnected { color: #c0392b; }
-    </style>
+    <title>Aria Health - Hospital Command</title>
+    <link rel="stylesheet" href="/static/hospital.css?v=11">
 </head>
-<body>
-    <div class="header">
-        <h1>ARIA HEALTH - Hospital Dashboard</h1>
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <div id="wsStatus" class="ws-status disconnected">Disconnected</div>
-            <button class="btn btn-primary" onclick="refreshCases()">Refresh</button>
+<body class="mode-inbound light">
+    <header class="header">
+        <div class="brand">
+            <div class="brand-mark">
+                <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                    <circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-width="4"/>
+                    <path d="M32 22 V42 M22 32 H42" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+                    <line x1="32" y1="6" x2="32" y2="12" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    <circle cx="32" cy="6" r="3" fill="currentColor"/>
+                    <line x1="52" y1="40" x2="46" y2="36" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    <circle cx="56" cy="42" r="3" fill="currentColor"/>
+                    <line x1="12" y1="40" x2="18" y2="36" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    <circle cx="8" cy="42" r="3" fill="currentColor"/>
+                </svg>
+            </div>
+            <div>
+                <div class="brand-title">ARIA HEALTH</div>
+                <div class="brand-subtitle">Hospital Command</div>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="connection" id="wsStatus">Disconnected</div>
+            <div class="stream-status">
+                <span class="dot" id="streamDot"></span>
+                <span id="streamStatus">Waiting for stream</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button id="modeToggle" class="btn btn-toggle">Inbound</button>
+            <button class="btn btn-secondary" onclick="refreshCases()">Refresh</button>
+        </div>
+    </header>
+
+    <main class="layout">
+        <aside class="case-rail">
+            <div class="rail-header">
+                <span>Active Cases</span>
+                <span id="caseCount" class="rail-count">0</span>
+            </div>
+            <div class="rail-body" id="caseListBody">
+                <div class="empty-state">No active cases</div>
+            </div>
+        </aside>
+
+        <section class="case-detail">
+            <div class="alert-banner" id="alertBanner">
+                <div class="alert-title" id="alertTitle">No critical alerts</div>
+                <div class="alert-sub" id="alertSub">Awaiting clinical triggers</div>
+            </div>
+
+            <div class="tabs">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="overview">Overview</button>
+                    <button class="tab-btn" data-tab="epcr">NEMSIS ePCR</button>
+                    <button class="tab-btn" data-tab="interventions">Interventions</button>
+                    <button class="tab-btn" data-tab="documents">Documents</button>
+                    <button class="tab-btn" data-tab="evidence">Evidence</button>
+                    <button class="tab-btn" data-tab="admin">Admin</button>
+                </div>
+                <div class="tab-panels">
+                    <div class="tab-panel active" id="tab-overview">
+                        <div class="overview-stack">
+                            <div class="patient-snapshot">
+                                <div class="snapshot-item">
+                                    <div class="snapshot-label">Patient</div>
+                                    <div class="snapshot-value" id="patientName">--</div>
+                                </div>
+                                <div class="snapshot-item">
+                                    <div class="snapshot-label">Age/Gender</div>
+                                    <div class="snapshot-value" id="patientDemo">--</div>
+                                </div>
+                                <div class="snapshot-item">
+                                    <div class="snapshot-label">ETA</div>
+                                    <div class="snapshot-value" id="patientEta">--</div>
+                                </div>
+                                <div class="snapshot-item">
+                                    <div class="snapshot-label">Last Update</div>
+                                    <div class="snapshot-value" id="lastUpdate">--</div>
+                                </div>
+                                <div class="snapshot-tags">
+                                    <span class="badge" id="triageBadge">Moderate</span>
+                                    <span class="badge ghost" id="handoffBadge">Streaming</span>
+                                </div>
+                            </div>
+
+                            <div class="summary-row">
+                                <div class="summary-card critical-summary inbound-only">
+                                    <div class="card-title">Inbound Critical Brief</div>
+                                    <div class="summary-hero">
+                                        <div class="summary-pill" id="inboundPriority">--</div>
+                                        <div>
+                                            <div class="summary-kicker" id="inboundKicker">Chief complaint</div>
+                                            <div class="summary-headline" id="inboundHeadline">--</div>
+                                            <div class="summary-sub" id="inboundSubtitle">--</div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-block full summary-list-block">
+                                        <div class="summary-label">Critical Summary</div>
+                                        <ul class="summary-list summary-list-compact" id="inboundSummaryList"></ul>
+                                    </div>
+                                    <div class="summary-group-label">Present (In-Transit)</div>
+                                    <div class="summary-grid summary-grid-wide">
+                                        <div class="summary-block">
+                                            <div class="summary-label">Vitals Snapshot</div>
+                                            <div class="summary-value" id="inboundVitals">--</div>
+                                        </div>
+                                        <div class="summary-block">
+                                            <div class="summary-label">Clinical Impression</div>
+                                            <div class="summary-value" id="inboundImpression">--</div>
+                                        </div>
+                                        <div class="summary-block">
+                                            <div class="summary-label">Interventions En Route</div>
+                                            <div class="summary-value" id="inboundInterventions">--</div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-group-label">Past (History)</div>
+                                    <div class="summary-block full">
+                                        <div class="summary-label">History / Allergies</div>
+                                        <div class="summary-value" id="inboundHistory">--</div>
+                                    </div>
+                                </div>
+
+                                <div class="summary-card critical-summary arrived-only">
+                                    <div class="card-title">Arrival Executive Summary</div>
+                                    <div class="summary-hero">
+                                        <div class="summary-pill" id="arrivedPriority">--</div>
+                                        <div>
+                                            <div class="summary-kicker">Primary concern</div>
+                                            <div class="summary-headline" id="arrivedHeadline">--</div>
+                                            <div class="summary-sub" id="arrivedSubtitle">--</div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-block full summary-list-block">
+                                        <div class="summary-label">Critical Summary</div>
+                                        <ul class="summary-list summary-list-compact" id="arrivedSummaryList"></ul>
+                                    </div>
+                                    <div class="summary-grid summary-grid-wide">
+                                        <div class="summary-block">
+                                            <div class="summary-label">Key Findings</div>
+                                            <ul class="summary-list" id="arrivedFindingsList"></ul>
+                                        </div>
+                                        <div class="summary-block">
+                                            <div class="summary-label">Interventions</div>
+                                            <ul class="summary-list" id="arrivedActionsList"></ul>
+                                        </div>
+                                        <div class="summary-block">
+                                            <div class="summary-label">Risks / Contraindications</div>
+                                            <ul class="summary-list summary-list-warn" id="arrivedRisksList"></ul>
+                                        </div>
+                                        <div class="summary-block">
+                                            <div class="summary-label">Likely Diagnosis</div>
+                                            <ul class="summary-list" id="arrivedDxList"></ul>
+                                        </div>
+                                    </div>
+                                    <div class="summary-block full">
+                                        <div class="summary-label">Clinical Narrative</div>
+                                        <div class="summary-value" id="arrivedNarrative">--</div>
+                                    </div>
+                                </div>
+
+                                <div class="future-stack">
+                                    <div class="prep-card">
+                                        <div class="card-title">Prep Actions</div>
+                                        <div id="prepChecklist" class="prep-list"></div>
+                                    </div>
+
+                                    <div class="warnings-card">
+                                        <div class="card-title">Safety Flags & Contraindications</div>
+                                        <div id="warningList" class="warning-list">
+                                            <div class="warning-item">No safety flags yet</div>
+                                        </div>
+                                        <div class="diagnosis-block">
+                                            <div class="block-title">Likely Diagnoses</div>
+                                            <div id="diagnosisList" class="chip-list"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="warnings-card history-warnings-card" id="historyWarnings">
+                                        <div class="card-title">History-Based Warnings</div>
+                                        <div id="historyWarningList" class="warning-list">
+                                            <div class="warning-item">No history warnings yet</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="details-row">
+                                <div class="vitals-card" id="liveVitals">
+                                    <div class="card-title">Live Vitals</div>
+                                    <div class="vitals-charts">
+                                        <div class="chart-block">
+                                            <div class="chart-label">Heart Rate</div>
+                                            <canvas id="hrChart" width="420" height="110"></canvas>
+                                        </div>
+                                        <div class="chart-block">
+                                            <div class="chart-label">SpO2</div>
+                                            <canvas id="spo2Chart" width="420" height="110"></canvas>
+                                        </div>
+                                        <div class="chart-block">
+                                            <div class="chart-label">Blood Pressure</div>
+                                            <canvas id="bpChart" width="420" height="110"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="vitals-values">
+                                        <div class="vital-pill" id="vitalHR">HR --</div>
+                                        <div class="vital-pill" id="vitalSpO2">SpO2 --</div>
+                                        <div class="vital-pill" id="vitalBP">BP --</div>
+                                        <div class="vital-pill" id="vitalGCS">GCS --</div>
+                                    </div>
+                                </div>
+
+                                <div class="stream-card">
+                                    <div class="card-title">Live Stream Detail</div>
+                                    <div id="streamFeed" class="stream-list"><div class="stream-item">Awaiting stream...</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-panel" id="tab-epcr">
+                        <div class="epcr-grid">
+                            <div class="epcr-card">
+                                <div class="block-title">Patient Information</div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">Name</span><span id="epcrName" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Age/Gender</span><span id="epcrDemo" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">DOB</span><span id="epcrDob" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Race</span><span id="epcrRace" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Phone</span><span id="epcrPhone" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Address</span><span id="epcrAddress" class="kv-value">--</span></div>
+                                </div>
+                                <div class="divider"></div>
+                                <div class="block-title">Primary Care</div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">GP Name</span><span id="epcrGp" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Practice</span><span id="epcrGpPractice" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">GP Phone</span><span id="epcrGpPhone" class="kv-value">--</span></div>
+                                </div>
+                            </div>
+
+                            <div class="epcr-card">
+                                <div class="block-title">Situation</div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">Chief Complaint</span><span id="epcrChief" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Primary Impression</span><span id="epcrImpression" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Secondary Impression</span><span id="epcrSecondary" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Injury Cause</span><span id="epcrInjury" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Initial Acuity</span><span id="epcrInitialAcuity" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Onset Time</span><span id="epcrOnset" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Duration</span><span id="epcrDuration" class="kv-value">--</span></div>
+                                </div>
+                            </div>
+
+                            <div class="epcr-card">
+                                <div class="block-title">Vitals</div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">Blood Pressure</span><span id="epcrBP" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Heart Rate</span><span id="epcrHR" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Respiratory Rate</span><span id="epcrRR" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">SpO2</span><span id="epcrSpO2" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Blood Glucose</span><span id="epcrGlucose" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Temperature</span><span id="epcrTemp" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Pain Scale</span><span id="epcrPain" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">GCS</span><span id="epcrGcs" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">LOC</span><span id="epcrLOC" class="kv-value">--</span></div>
+                                </div>
+                            </div>
+
+                            <div class="epcr-card">
+                                <div class="block-title">History & Allergies</div>
+                                <div class="epcr-section">
+                                    <div class="kv-label">Medical History</div>
+                                    <ul id="epcrHistory" class="list"></ul>
+                                </div>
+                                <div class="epcr-section">
+                                    <div class="kv-label">Allergies</div>
+                                    <ul id="epcrAllergies" class="list"></ul>
+                                </div>
+                                <div class="epcr-section">
+                                    <div class="kv-label">Current Medications</div>
+                                    <ul id="epcrCurrentMeds" class="list"></ul>
+                                </div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">Last Oral Intake</span><span id="epcrLastIntake" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Alcohol/Drug Use</span><span id="epcrSubstance" class="kv-value">--</span></div>
+                                </div>
+                            </div>
+
+                            <div class="epcr-card">
+                                <div class="block-title">Procedures & Medications</div>
+                                <div class="epcr-section">
+                                    <div class="kv-label">Procedures</div>
+                                    <ul id="epcrProcedures" class="list"></ul>
+                                </div>
+                                <div class="epcr-section">
+                                    <div class="kv-label">Medications</div>
+                                    <ul id="epcrMedications" class="list"></ul>
+                                </div>
+                            </div>
+
+                            <div class="epcr-card">
+                                <div class="block-title">Times</div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">Unit Notified</span><span id="epcrUnitNotified" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">En Route</span><span id="epcrEnRoute" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Arrived Scene</span><span id="epcrArrivedScene" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Arrived Patient</span><span id="epcrArrivedPatient" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Left Scene</span><span id="epcrLeftScene" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Arrived Destination</span><span id="epcrArrivedDestination" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Transfer of Care</span><span id="epcrTransfer" class="kv-value">--</span></div>
+                                </div>
+                            </div>
+
+                            <div class="epcr-card">
+                                <div class="block-title">Disposition</div>
+                                <div class="kv-list">
+                                    <div class="kv"><span class="kv-label">Destination</span><span id="epcrDestination" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Destination Type</span><span id="epcrDestinationType" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Transport Mode</span><span id="epcrTransportMode" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Disposition</span><span id="epcrDisposition" class="kv-value">--</span></div>
+                                    <div class="kv"><span class="kv-label">Patient Acuity</span><span id="epcrDispositionAcuity" class="kv-value">--</span></div>
+                                </div>
+                                <div class="epcr-section">
+                                    <div class="kv-label">Team Activation</div>
+                                    <ul id="epcrTeams" class="list"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-panel" id="tab-interventions">
+                        <div class="panel-grid">
+                            <div>
+                                <div class="block-title">Procedures</div>
+                                <ul id="proceduresList" class="list"></ul>
+                            </div>
+                            <div>
+                                <div class="block-title">Medications Administered</div>
+                                <ul id="medicationsList" class="list"></ul>
+                            </div>
+                            <div>
+                                <div class="block-title">Intervention Timeline</div>
+                                <div id="timelineList" class="timeline"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-panel" id="tab-documents">
+                        <div class="doc-grid" id="documentGrid"></div>
+                    </div>
+                    <div class="tab-panel" id="tab-evidence">
+                        <div class="evidence-list" id="evidenceList"></div>
+                    </div>
+                    <div class="tab-panel" id="tab-admin">
+                        <div class="panel-grid">
+                            <div>
+                                <div class="block-title">Coordination Tasks</div>
+                                <ul id="adminTasks" class="list"></ul>
+                            </div>
+                            <div>
+                                <div class="block-title">Raw Transcript</div>
+                                <div id="rawTranscript" class="block-text">--</div>
+                            </div>
+                            <div>
+                                <div class="block-title">GP Transmission</div>
+                                <div id="gpTransmission" class="block-text">--</div>
+                            </div>
+                            <div>
+                                <div class="block-title">Medical Records</div>
+                                <div id="medicalRecords" class="block-text">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="drawer" id="evidenceDrawer" aria-hidden="true">
+        <div class="drawer-header">
+            <div>
+                <div class="drawer-title">Evidence Detail</div>
+                <div class="drawer-sub" id="drawerSubtitle">Source trail</div>
+            </div>
+            <button class="btn btn-secondary" id="closeDrawer">Back to Dashboard</button>
+        </div>
+        <div class="drawer-body" id="drawerBody"></div>
+    </div>
+
+    <div class="ask-panel" id="askPanel">
+        <div class="ask-header">
+            <span>Ask Aria</span>
+            <button id="askToggle" class="btn btn-secondary">Hide</button>
+        </div>
+        <div class="ask-body">
+            <div class="ask-input">
+                <input id="askText" type="text" placeholder="Ask: meds given, allergies, last vitals...">
+                <button class="btn btn-primary" id="askSend">Ask</button>
+            </div>
+            <div class="ask-voice">
+                <button class="btn btn-voice" id="askMic">Hold to talk</button>
+                <span id="askStatus">Voice ready</span>
+            </div>
+            <div class="ask-response" id="askResponse">Awaiting question...</div>
         </div>
     </div>
-    <div class="dashboard-container">
-        <div class="panel case-list">
-            <div class="panel-header">
-                Active Cases
-                <span id="caseCount" style="font-size: 11px; color: #5a6578;">0</span>
-            </div>
-            <div class="panel-body" id="caseListBody">
-                <div class="no-cases">No active cases</div>
-            </div>
-        </div>
-        <div id="detailArea">
-            <div class="no-selection">Select a case to view details</div>
-        </div>
-    </div>
-    <script src="/static/hospital.js"></script>
+
+    <script src="/static/hospital.js?v=11"></script>
 </body>
 </html>

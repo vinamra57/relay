@@ -46,11 +46,10 @@ async def elevenlabs_post_call(request: Request) -> dict:
     db = await get_db()
 
     # Look up case_id from gp_call_audit by conversation_id
-    row = await db.execute(
+    audit_row = await db.fetch_one(
         "SELECT case_id FROM gp_call_audit WHERE conversation_id = ?",
         (conversation_id,),
     )
-    audit_row = await row.fetchone()
 
     if not audit_row:
         logger.warning(

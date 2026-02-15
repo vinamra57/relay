@@ -13,7 +13,9 @@ from app.config import (
     ELEVENLABS_AGENT_ID,
     ELEVENLABS_API_KEY,
     ELEVENLABS_PHONE_NUMBER_ID,
+    GP_CALLS_ENABLED,
     HOSPITAL_CALLBACK_NUMBER,
+    VOICE_DUMMY,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,19 @@ async def place_gp_call(
     Returns:
         Dict with keys: call_sid, conversation_id, status
     """
+    if not GP_CALLS_ENABLED:
+        logger.info("GP_CALLS_ENABLED=false, skipping outbound call")
+        return {
+            "call_sid": None,
+            "conversation_id": None,
+            "status": "skipped",
+            "transcript": "GP calls disabled by configuration.",
+        }
+
+    if VOICE_DUMMY:
+        logger.info("VOICE_DUMMY=true, returning dummy GP call")
+        return _dummy_call(patient_name, case_id)
+
     if not ELEVENLABS_API_KEY:
         logger.error("ELEVENLABS_API_KEY not set, cannot place GP call")
         return {"call_sid": None, "conversation_id": None, "status": "error",
