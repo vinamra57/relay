@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 import logging
 import re
 from typing import TypeVar
 
-from anthropic import AsyncAnthropic
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from app.config import (
@@ -13,13 +13,14 @@ from app.config import (
     LLM_MODEL_HIGH,
     LLM_MODEL_STANDARD,
     LLM_PROVIDER,
+    MODAL_ENDPOINT_URL,
+    MODAL_MODEL_NAME,
     OPENAI_API_KEY,
 )
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
-
 
 _ANTHROPIC_DEFAULTS = {
     "fast": "claude-3-haiku-20240307",
@@ -54,18 +55,36 @@ class LLMClient:
                 provider = "anthropic"
             elif OPENAI_API_KEY:
                 provider = "openai"
+            elif MODAL_ENDPOINT_URL:
+                provider = "modal"
             else:
                 provider = "dummy"
-        self.provider = provider
 
-        self._anthropic = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
-        self._openai = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+        self.provider = provider
+        self._anthropic = None
+        self._openai = None
+        self._modal = None
+
+        if ANTHROPIC_API_KEY:
+            from anthropic import AsyncAnthropic
+
+            self._anthropic = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+        if OPENAI_API_KEY:
+            from openai import AsyncOpenAI
+
+            self._openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        if MODAL_ENDPOINT_URL:
+            from openai import AsyncOpenAI
+
+            self._modal = AsyncOpenAI(base_url=MODAL_ENDPOINT_URL, api_key="modal")
 
     def available(self) -> bool:
         if self.provider == "anthropic":
             return self._anthropic is not None
         if self.provider == "openai":
             return self._openai is not None
+        if self.provider == "modal":
+            return self._modal is not None
         return False
 
     def model_for_tier(self, tier: str | None) -> str:
@@ -82,6 +101,8 @@ class LLMClient:
 
         if self.provider == "anthropic":
             return _ANTHROPIC_DEFAULTS[tier]
+        if self.provider == "modal":
+            return MODAL_MODEL_NAME or _OPENAI_DEFAULTS[tier]
         return _OPENAI_DEFAULTS[tier]
 
     async def generate_json(
@@ -112,7 +133,11 @@ class LLMClient:
             raw = _strip_json(raw)
             return response_model.model_validate_json(raw)
 
-        response = await self._openai.beta.chat.completions.parse(
+        client = self._openai if self.provider == "openai" else self._modal
+        if client is None:
+            raise RuntimeError("LLM provider unavailable")
+
+        response = await client.beta.chat.completions.parse(
             model=model,
             messages=[
                 {"role": "system", "content": system},

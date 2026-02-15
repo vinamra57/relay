@@ -122,17 +122,3 @@ async def place_gp_call(
         logger.error("GP call failed: %s", e)
         return {"call_sid": None, "conversation_id": None, "status": "error",
                 "error": str(e)}
-
-
-def _dummy_call(patient_name: str, case_id: str | None) -> dict:
-    """Return synthetic call result for dummy mode."""
-    return {
-        "call_sid": f"dummy-sid-{case_id or 'none'}",
-        "conversation_id": f"dummy-conv-{case_id or 'none'}",
-        "status": "dummy",
-        "transcript": (
-            f"[DUMMY] GP practice answered. Confirmed patient {patient_name} is on file. "
-            f"Allergies: Penicillin. Current medications: Metformin 500mg, Lisinopril 10mg. "
-            f"Recent history: Type 2 diabetes, hypertension. Last visit: 3 weeks ago."
-        ),
-    }

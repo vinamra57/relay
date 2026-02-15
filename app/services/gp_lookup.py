@@ -124,13 +124,3 @@ async def lookup_gp_phone(
         logger.error("GP lookup failed: %s", e)
 
     return None
-
-
-def _dummy_lookup(gp_name: str, practice_name: str | None = None) -> dict:
-    """Return synthetic GP lookup result for dummy mode."""
-    return {
-        "phone": "+1-555-0123",
-        "practice_name": practice_name or f"{gp_name}'s Practice",
-        "address": "123 Main St, Springfield",
-        "source": "dummy://perplexity",
-    }

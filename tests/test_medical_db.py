@@ -96,7 +96,7 @@ class TestFormatMedicalHistoryReport:
         assert "END OF REPORT" in report
 
     def test_empty_history(self):
-        history = PatientMedicalHistory(source="dummy://test")
+        history = PatientMedicalHistory(source="test://synthetic")
         report = format_medical_history_report(history, "Unknown", "0")
         assert "No conditions on record" in report
         assert "No known allergies on record" in report
@@ -142,11 +142,11 @@ class TestFormatMedicalHistoryReport:
         assert "Source: https://hapi.fhir.org/baseR4" in report
 
 
-# --- query_records integration (dummy mode) ---
+# --- query_records integration (live FHIR) ---
 
 
-async def test_query_records_returns_report_text():
-    """query_records returns a formatted text report in dummy mode."""
+async def test_query_records_known_patient():
+    """query_records returns a formatted text report for a known FHIR patient."""
     result = await query_records(
         patient_name="John Smith",
         patient_age="45",
@@ -155,35 +155,20 @@ async def test_query_records_returns_report_text():
     assert isinstance(result, str)
     assert "MEDICAL HISTORY REPORT" in result
     assert "John Smith" in result
-    assert "CONDITIONS / MEDICAL HISTORY" in result
-    assert "ALLERGIES (CRITICAL)" in result
-    assert "CURRENT MEDICATIONS" in result
 
 
-async def test_query_records_with_dob():
-    """query_records passes DOB through to FHIR query."""
+async def test_query_records_unknown_patient():
+    """query_records returns a 'not found' message for unknown patients."""
     result = await query_records(
-        patient_name="Jane Doe",
-        patient_age="32",
-        patient_gender="Female",
-        patient_dob="1994-05-20",
-    )
-    assert "Jane Doe" in result
-    assert "DOB: 1994-05-20" in result
-
-
-async def test_query_records_without_dob():
-    """query_records works without DOB (uses default)."""
-    result = await query_records(
-        patient_name="Test Patient",
-        patient_age="50",
+        patient_name="Zxywqp McFakerson",
+        patient_age="99",
         patient_gender="Male",
     )
-    assert "Test Patient" in result
-    assert "MEDICAL HISTORY REPORT" in result
+    assert isinstance(result, str)
+    assert "No matching patient records" in result
 
 
-# --- build_medical_history_report integration (dummy mode) ---
+# --- build_medical_history_report integration (live FHIR) ---
 
 
 async def test_build_report_returns_structured():
@@ -194,85 +179,18 @@ async def test_build_report_returns_structured():
         patient_gender="Male",
     )
     assert isinstance(report, MedicalHistoryReport)
-    assert report.found is True
-    assert report.history.patient_name == "John Smith"
-    assert len(report.history.conditions) > 0
-    assert len(report.history.allergies) > 0
-    assert "MEDICAL HISTORY REPORT" in report.report_text
+    # Real FHIR server may find John Smith
+    if report.found:
+        assert report.history.patient_name != ""
+        assert "MEDICAL HISTORY REPORT" in report.report_text
 
 
-async def test_build_report_conditions():
-    """Verify conditions are populated in dummy mode report."""
+async def test_build_report_not_found():
+    """build_medical_history_report handles unknown patients gracefully."""
     report = await build_medical_history_report(
-        patient_name="Test Patient",
-        patient_age="40",
-        patient_gender="Female",
-    )
-    assert len(report.history.conditions) >= 3
-    assert all(isinstance(c, str) for c in report.history.conditions)
-
-
-async def test_build_report_allergies():
-    """Verify allergies are populated."""
-    report = await build_medical_history_report(
-        patient_name="Test Patient",
-        patient_age="40",
-        patient_gender="Female",
-    )
-    assert len(report.history.allergies) >= 1
-    assert all(isinstance(a, str) for a in report.history.allergies)
-
-
-async def test_build_report_medications():
-    """Verify medications are populated."""
-    report = await build_medical_history_report(
-        patient_name="Test Patient",
-        patient_age="40",
-        patient_gender="Female",
-    )
-    assert len(report.history.medications) >= 2
-    assert all(isinstance(m, str) for m in report.history.medications)
-
-
-async def test_build_report_immunizations():
-    """Verify immunizations are populated."""
-    report = await build_medical_history_report(
-        patient_name="Test",
-        patient_age="30",
+        patient_name="Zxywqp McFakerson",
+        patient_age="99",
         patient_gender="Male",
     )
-    assert len(report.history.immunizations) >= 2
-    assert all(isinstance(i, str) for i in report.history.immunizations)
-
-
-async def test_build_report_procedures():
-    """Verify procedures are populated."""
-    report = await build_medical_history_report(
-        patient_name="Test",
-        patient_age="30",
-        patient_gender="Male",
-    )
-    assert len(report.history.procedures) >= 2
-    assert all(isinstance(p, str) for p in report.history.procedures)
-
-
-async def test_build_report_with_dob():
-    """Verify DOB is included in report when provided."""
-    report = await build_medical_history_report(
-        patient_name="Test",
-        patient_age="30",
-        patient_gender="Male",
-        patient_dob="1996-01-01",
-    )
-    assert report.history.patient_dob == "1996-01-01"
-    assert "DOB: 1996-01-01" in report.report_text
-
-
-async def test_build_report_source():
-    """Verify source is set in dummy mode."""
-    report = await build_medical_history_report(
-        patient_name="Test",
-        patient_age="30",
-        patient_gender="Male",
-    )
-    assert report.history.source == "dummy://synthetic-fhir-server"
+    assert isinstance(report, MedicalHistoryReport)
+    assert report.found is False

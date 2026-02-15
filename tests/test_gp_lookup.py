@@ -31,51 +31,14 @@ class TestValidatePhone:
         assert _validate_phone("not a number") is None
 
 
-# --- Dummy Mode Lookup ---
+# --- Lookup without API key ---
 
 
-async def test_lookup_dummy_mode_returns_result():
-    """In dummy mode, lookup returns synthetic GP contact."""
+async def test_lookup_no_api_key_returns_none():
+    """Without PERPLEXITY_API_KEY, lookup returns None."""
     result = await lookup_gp_phone(
         gp_name="Dr. Wilson",
         location="Springfield",
         practice_name="Greenfield Medical Center",
     )
-    assert result is not None
-    assert "phone" in result
-    assert "practice_name" in result
-    assert "address" in result
-    assert "source" in result
-    assert result["source"] == "dummy://perplexity"
-
-
-async def test_lookup_dummy_mode_with_practice_name():
-    """Dummy mode includes practice name if provided."""
-    result = await lookup_gp_phone(
-        gp_name="Dr. Smith",
-        location="Chicago",
-        practice_name="Smith Family Practice",
-    )
-    assert result is not None
-    assert result["practice_name"] == "Smith Family Practice"
-
-
-async def test_lookup_dummy_mode_without_practice_name():
-    """Dummy mode generates practice name from GP name."""
-    result = await lookup_gp_phone(
-        gp_name="Dr. Jones",
-        location="New York",
-    )
-    assert result is not None
-    assert "Dr. Jones" in result["practice_name"]
-
-
-async def test_lookup_dummy_mode_phone_valid():
-    """Dummy mode returns a validatable phone number."""
-    result = await lookup_gp_phone(
-        gp_name="Dr. Wilson",
-        location="Springfield",
-    )
-    assert result is not None
-    phone = _validate_phone(result["phone"])
-    assert phone is not None
+    assert result is None

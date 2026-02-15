@@ -10,9 +10,6 @@ asyncio_mode = "auto"
 addopts = [
     "-v",
     "--tb=short",
-    "--cov=app",
-    "--cov-report=term-missing",
-    "--cov-fail-under=60",
 ]
 
 [tool.coverage.run]

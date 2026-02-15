@@ -5,8 +5,6 @@ from app.models.nemsis import NEMSISRecord
 from app.services.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
-
-
 SYSTEM_PROMPT = """You are an EMS data extraction AI specialized in NEMSIS v3.5-compliant ePCR (Electronic Patient Care Report) fields.
 
 Your task: Extract structured medical data from paramedic voice transcripts.
@@ -37,7 +35,7 @@ Schema:"""
 
 
 def _json_schema_prompt() -> str:
-    """Return the JSON schema for NEMSISRecord so Claude can output valid JSON."""
+    """Return the JSON schema for NEMSISRecord so the LLM can output valid JSON."""
     schema = NEMSISRecord.model_json_schema()
     return json.dumps(schema, indent=2)
 
@@ -65,7 +63,6 @@ async def extract_nemsis(transcript: str, existing: NEMSISRecord | None = None) 
             response_model=NEMSISRecord,
             max_tokens=4096,
         )
-
         if existing:
             extracted = _merge_records(existing, extracted)
 

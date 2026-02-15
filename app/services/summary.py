@@ -6,8 +6,6 @@ from app.models.summary import CaseSummary, HospitalSummary
 from app.services.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
-
-
 CASE_SUMMARY_PROMPT = """You are a clinical summarization AI for emergency medical services.
 
 Given the case data below (transcript, NEMSIS-compliant structured data, GP response,
@@ -70,7 +68,7 @@ async def _load_case_data(case_id: str) -> dict:
 
 
 def _empty_case_summary() -> CaseSummary:
-    """Minimal valid case summary when Claude is not available."""
+    """Minimal valid case summary when no LLM is available."""
     return CaseSummary(
         one_liner="No summary available.",
         clinical_narrative="",
@@ -81,7 +79,7 @@ def _empty_case_summary() -> CaseSummary:
 
 
 def _empty_hospital_summary() -> HospitalSummary:
-    """Minimal valid hospital summary when Claude is not available."""
+    """Minimal valid hospital summary when no LLM is available."""
     return HospitalSummary(
         patient_demographics="",
         chief_complaint="",
@@ -99,7 +97,6 @@ def _empty_hospital_summary() -> HospitalSummary:
 async def generate_summary(case_id: str, urgency: str = "standard") -> CaseSummary:
     """Generate a case summary using configured LLM provider."""
     data = await _load_case_data(case_id)
-
     user_content = (
         f"Urgency context: {urgency}\n\n"
         f"Transcript:\n{data['transcript']}\n\n"
@@ -126,7 +123,6 @@ async def generate_summary(case_id: str, urgency: str = "standard") -> CaseSumma
 async def get_summary_for_hospital(case_id: str) -> HospitalSummary:
     """Generate a hospital preparation summary using configured LLM provider."""
     data = await _load_case_data(case_id)
-
     user_content = (
         f"Transcript:\n{data['transcript']}\n\n"
         f"NEMSIS Data:\n{json.dumps(data['nemsis'], indent=2)}\n\n"
