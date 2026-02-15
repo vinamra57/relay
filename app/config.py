@@ -19,7 +19,7 @@ LLM_MODEL_HIGH = os.getenv("LLM_MODEL_HIGH", "")
 # Demo/Debug mode (explicit)
 DUMMY_MODE = os.getenv("DUMMY_MODE", "false").lower() in ("1", "true", "yes", "on")
 VOICE_DUMMY = os.getenv("VOICE_DUMMY", "false").lower() in ("1", "true", "yes", "on")
-GP_CALLS_ENABLED = os.getenv("GP_CALLS_ENABLED", "true").lower() in ("1", "true", "yes", "on")
+GP_CALLS_ENABLED = os.getenv("GP_CALLS_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "relay.db")
 

@@ -660,6 +660,42 @@ body {
     margin-top: 2px;
 }
 
+.gp-status-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.status-pill {
+    border: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    cursor: default;
+}
+
+.status-pill.active {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.status-pill.success {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.status-pill.warning {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(245, 158, 11, 0.15);
+}
+
 .source-result {
     font-size: 10px;
     color: var(--accent-green);

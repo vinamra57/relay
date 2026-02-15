@@ -331,6 +331,10 @@ function updateNEMSIS(nemsis) {
         setSourceStatus('GP', 'querying');
         updateSourceResult('GP', 'GP contact detected');
     }
+
+    if (p.gp_name || p.gp_phone || p.gp_practice_name) {
+        setStatusPill("gpExtractedBadge", "success");
+    }
 }
 
 function setField(id, value) {
@@ -668,6 +672,7 @@ function handleGpTriggered(message) {
     document.getElementById("gpCallStatus").textContent = "Calling...";
     document.getElementById("gpCallStatus").className = "gp-call-status calling";
     document.getElementById("gpCallTranscript").textContent = message || "Initiating GP voice call...";
+    setStatusPill("gpCallBadge", "active");
 }
 
 function handleGpComplete(gpResponse) {
@@ -678,6 +683,12 @@ function handleGpComplete(gpResponse) {
     document.getElementById("gpCallStatus").className = "gp-call-status complete";
     if (gpResponse) {
         document.getElementById("gpCallTranscript").textContent = gpResponse;
+    }
+    const responseLower = (gpResponse || "").toLowerCase();
+    if (responseLower.includes("skipped") || responseLower.includes("disabled")) {
+        setStatusPill("gpCallBadge", "warning", "GP call disabled");
+    } else {
+        setStatusPill("gpCallBadge", "success");
     }
 }
 
@@ -741,6 +752,13 @@ function setStatus(type, text) {
     badge.className = `status-badge status-${type}`;
 }
 
+function setStatusPill(id, state, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = `status-pill ${state || ""}`.trim();
+    if (label) el.textContent = label;
+}
+
 function resetDataSources() {
     for (const key of Object.keys(dataSources)) {
         dataSources[key].status = 'waiting';
@@ -797,6 +815,8 @@ function clearUI() {
     document.getElementById("hospitalBanner").style.display = "none";
     document.getElementById("sourcesStatus").textContent = "Waiting for Core ID";
     document.getElementById("sourcesStatus").classList.remove("active");
+    setStatusPill("gpExtractedBadge", "");
+    setStatusPill("gpCallBadge", "");
 
     // Reset timer
     document.getElementById("timerValue").textContent = "00:00";
